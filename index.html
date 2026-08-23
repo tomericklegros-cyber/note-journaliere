@@ -1,0 +1,1271 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Note journalière — Classificateur de performances</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --stone:      #0B0A10;
+    --stone-dark: #17141F;
+    --ink:        #EFEAF7;
+    --ink-soft:   #9A93AD;
+    --card:       #14121B;
+    --line:       #322B44;
+
+    --purple:      #9B6DE0;
+    --purple-soft: #6B4FA0;
+
+    --r1: #CFE7F2;
+    --r1-ink: #10222C;
+    --r2: #5FA9D6;
+    --r2-ink: #0A1E2C;
+    --r3: #45AD7A;
+    --r3-ink: #06231A;
+    --r4: #E4842B;
+    --r4-ink: #331700;
+    --r5: #D9455A;
+    --r5-gold: #EFC24C;
+    --r5-ink: #2A0004;
+
+    --radius: 14px;
+    --font-display: 'Bebas Neue', 'Arial Narrow', sans-serif;
+    --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-mono: 'IBM Plex Mono', 'Courier New', monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  @keyframes streakDrift {
+    0%   { background-position: 0 0, 0 0; }
+    100% { background-position: 1400px 900px, -1000px 700px; }
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--stone);
+    background-image:
+      repeating-linear-gradient(115deg, rgba(155,109,224,0.16) 0px, rgba(155,109,224,0.16) 1.5px, transparent 1.5px, transparent 140px),
+      repeating-linear-gradient(65deg, rgba(107,79,160,0.14) 0px, rgba(107,79,160,0.14) 1px, transparent 1px, transparent 220px);
+    background-size: 1600px 1600px, 1200px 1200px;
+    animation: streakDrift 60s linear infinite;
+    color: var(--ink);
+    font-family: var(--font-body);
+    min-height: 100vh;
+    padding: 32px 20px 80px;
+  }
+
+  .wrap { max-width: 1080px; margin: 0 auto; }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 12px;
+    border-bottom: 3px solid var(--purple);
+    padding-bottom: 14px;
+    margin-bottom: 28px;
+  }
+
+  h1 {
+    font-family: var(--font-display);
+    font-size: clamp(34px, 6vw, 52px);
+    letter-spacing: 0.5px;
+    line-height: 0.9;
+    margin: 0;
+  }
+
+  .subtitle { color: var(--ink-soft); font-size: 14px; margin-top: 4px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .subtitle .rename-link { color: var(--purple); cursor: pointer; font-size: 12px; text-decoration: underline; background: none; border: none; padding: 0; font-family: var(--font-body); }
+
+  .date-badge {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    background: var(--purple);
+    color: #0B0A10;
+    padding: 6px 12px;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+
+  @media (max-width: 720px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 22px;
+    box-shadow: 0 1px 0 var(--line);
+  }
+
+  .card h2 {
+    font-family: var(--font-display);
+    font-size: 22px;
+    letter-spacing: 0.3px;
+    margin: 0 0 16px;
+  }
+
+  .card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  .card-head h2 { margin: 0; }
+
+  .edit-btn {
+    padding: 7px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--purple-soft);
+    background: transparent;
+    color: var(--ink);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease;
+  }
+  .edit-btn:hover { background: rgba(155,109,224,0.14); border-color: var(--purple); }
+
+  /* ---- TUBE GAUGE ---- */
+  .gauge-card { text-align: center; }
+
+  .gauge-shell {
+    position: relative;
+    width: 84px;
+    height: 340px;
+    margin: 8px auto 18px;
+  }
+
+  .gauge-tube {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border-radius: 40px;
+    background: #1A1725;
+    border: 3px solid var(--purple-soft);
+    overflow: hidden;
+  }
+
+  .band {
+    position: absolute;
+    left: 0; right: 0;
+    border-top: 1px dashed rgba(155,109,224,0.28);
+  }
+
+  .goal-mark {
+    position: absolute;
+    left: -4px; right: -4px;
+    border-top: 2px solid var(--r5-gold);
+    z-index: 3;
+  }
+  .goal-mark::after {
+    content: "obj.";
+    position: absolute;
+    right: -30px;
+    top: -7px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--r5-gold);
+  }
+
+  .fill {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 0%;
+    transition: height 0.9s cubic-bezier(.2,.9,.25,1), background 0.6s ease;
+    border-top: 3px solid rgba(0,0,0,0.15);
+  }
+
+  .fill::before {
+    content: "";
+    position: absolute;
+    top: -6px; left: 0; right: 0; height: 12px;
+    background: inherit;
+    filter: brightness(1.12);
+    border-radius: 50%;
+    opacity: 0.7;
+  }
+
+  .fill.extreme {
+    background: linear-gradient(180deg, var(--r5-gold), var(--r5));
+    box-shadow: 0 0 22px 2px rgba(217,69,90,0.55);
+  }
+
+  .tick-labels {
+    position: absolute;
+    top: 0; bottom: 0;
+    left: -46px;
+    width: 40px;
+    display: flex;
+    flex-direction: column-reverse;
+    justify-content: space-between;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--ink-soft);
+    text-align: right;
+    padding: 2px 0;
+  }
+
+  .score-readout {
+    font-family: var(--font-display);
+    font-size: 46px;
+    line-height: 1;
+    margin-top: 4px;
+  }
+  .score-readout span { font-size: 16px; font-family: var(--font-mono); color: var(--ink-soft); }
+
+  .rank-pill {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 6px 16px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    border: 2px solid var(--purple-soft);
+  }
+
+  .rank-progress {
+    margin-top: 14px;
+    text-align: left;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-soft);
+  }
+  .rank-progress .bar {
+    height: 6px;
+    background: var(--stone-dark);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 4px;
+    border: 1px solid var(--line);
+  }
+  .rank-progress .bar-fill {
+    height: 100%;
+    transition: width 0.6s ease;
+  }
+
+  .goal-box {
+    margin-top: 14px;
+    text-align: left;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-soft);
+    border-top: 1px dashed var(--line);
+    padding-top: 12px;
+  }
+  .goal-box .bar {
+    height: 6px;
+    background: var(--stone-dark);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 4px;
+    border: 1px solid var(--line);
+  }
+  .goal-box .bar-fill { height: 100%; background: var(--r5-gold); transition: width 0.6s ease; }
+
+  /* ---- FORM ---- */
+  .exercise-form {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+  @media (max-width: 480px) { .exercise-form { grid-template-columns: 1fr; } }
+
+  .field {
+    background: var(--stone-dark);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+
+  .field label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .field label .pts { color: var(--ink-soft); font-weight: 500; font-family: var(--font-mono); }
+
+  .field input {
+    width: 100%;
+    font-family: var(--font-mono);
+    font-size: 20px;
+    border: none;
+    background: transparent;
+    outline: none;
+    color: var(--ink);
+  }
+
+  .add-btn {
+    margin-top: 18px;
+    width: 100%;
+    padding: 14px;
+    border: 2px solid var(--purple);
+    background: var(--purple);
+    color: #0B0A10;
+    font-family: var(--font-display);
+    font-size: 18px;
+    letter-spacing: 0.06em;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: transform 0.12s ease, background 0.2s ease;
+  }
+  .add-btn:hover { background: #B58AEE; }
+  .add-btn:active { transform: scale(0.98); }
+
+  .flash {
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--ink-soft);
+    min-height: 16px;
+  }
+
+  /* ---- BREAKDOWN ---- */
+  .breakdown {
+    margin-top: 20px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+  @media (max-width: 620px) { .breakdown { grid-template-columns: repeat(2, 1fr); } }
+
+  .bd-item {
+    border: 1px dashed var(--line);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+  .bd-item .label { font-size: 12px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.04em; }
+  .bd-item .val { font-family: var(--font-mono); font-size: 18px; font-weight: 600; margin-top: 2px; }
+
+  /* ---- RANK LEGEND ---- */
+  .legend {
+    margin-top: 24px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .legend-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--stone-dark);
+  }
+  .legend-chip .dot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); }
+
+  .tip-box {
+    margin-top: 20px;
+    padding: 14px 16px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--stone-dark);
+    text-align: left;
+  }
+  .tip-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--purple);
+    margin-bottom: 6px;
+  }
+  .tip-text {
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--ink);
+    opacity: 1;
+    transition: opacity 0.4s ease;
+    min-height: 38px;
+  }
+  .tip-text.fading { opacity: 0; }
+
+  /* ---- CHART ---- */
+  .chart-card { margin-top: 24px; }
+  .chart-empty { color: var(--ink-soft); font-size: 14px; }
+
+  /* ---- RECORDS ---- */
+  .records-card { margin-top: 24px; }
+  .record-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 9px 0;
+    border-bottom: 1px dashed var(--line);
+    font-size: 13px;
+  }
+  .record-row:last-child { border-bottom: none; }
+  .record-row .rlabel { color: var(--ink-soft); }
+  .record-row .rval { font-family: var(--font-mono); font-weight: 700; color: var(--r5-gold); }
+  .record-row .rday { font-size: 11px; color: var(--ink-soft); margin-left: 6px; }
+
+  /* ---- HISTORY ---- */
+  .history-card { margin-top: 24px; }
+  .history-empty { color: var(--ink-soft); font-size: 14px; }
+  .history-list {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    padding-bottom: 6px;
+  }
+  .history-item {
+    flex: 0 0 auto;
+    min-width: 130px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 12px;
+    background: var(--stone-dark);
+  }
+  .history-item .day { font-family: var(--font-mono); font-size: 11px; color: var(--ink-soft); }
+  .history-item .pts { font-family: var(--font-display); font-size: 24px; margin: 2px 0; }
+  .history-item .rank { font-size: 11px; font-weight: 700; text-transform: uppercase; }
+
+  .export-row {
+    margin-top: 16px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .ghost-btn {
+    flex: 1 1 auto;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--purple-soft);
+    background: transparent;
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease;
+  }
+  .ghost-btn:hover { background: rgba(155,109,224,0.12); border-color: var(--purple); }
+
+  footer {
+    max-width: 1080px;
+    margin: 30px auto 0;
+    font-size: 12px;
+    color: var(--ink-soft);
+    line-height: 1.5;
+  }
+
+  /* ---- MODAL ---- */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(6,5,10,0.72);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 50;
+  }
+  .modal-overlay.open { display: flex; }
+
+  .modal-panel {
+    background: var(--card);
+    border: 1px solid var(--purple-soft);
+    border-radius: var(--radius);
+    padding: 24px;
+    width: 100%;
+    max-width: 560px;
+    max-height: 86vh;
+    overflow-y: auto;
+  }
+  .modal-panel h2 {
+    font-family: var(--font-display);
+    font-size: 24px;
+    margin: 0 0 6px;
+  }
+  .modal-sub { color: var(--ink-soft); font-size: 13px; margin-bottom: 18px; }
+  .modal-section-title {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--purple);
+    margin: 18px 0 8px;
+  }
+
+  .settings-field { margin-bottom: 12px; }
+  .settings-field label { display: block; font-size: 12px; color: var(--ink-soft); margin-bottom: 5px; }
+  .settings-field input {
+    width: 100%;
+    background: var(--stone-dark);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 14px;
+    outline: none;
+  }
+  .settings-field input:focus { border-color: var(--purple); }
+
+  .ex-row {
+    display: grid;
+    grid-template-columns: 1fr 90px 90px 34px;
+    gap: 8px;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .ex-row input[type="text"], .ex-row input[type="number"] {
+    width: 100%;
+    background: var(--stone-dark);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 9px;
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 13px;
+    outline: none;
+  }
+  .ex-row input[type="number"] { font-family: var(--font-mono); }
+  .ex-row input:focus { border-color: var(--purple); }
+
+  .remove-btn {
+    width: 30px; height: 30px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--ink-soft);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .remove-btn:hover { border-color: #D9455A; color: #D9455A; }
+
+  .ex-headrow {
+    display: grid;
+    grid-template-columns: 1fr 90px 90px 34px;
+    gap: 8px;
+    font-size: 10px;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding-bottom: 6px;
+  }
+
+  .add-ex-btn {
+    margin-top: 14px;
+    width: 100%;
+    padding: 10px;
+    border: 1px dashed var(--purple-soft);
+    background: transparent;
+    color: var(--purple);
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .add-ex-btn:hover { background: rgba(155,109,224,0.1); }
+
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+  }
+  .modal-actions button { flex: 1; padding: 12px; border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 14px; }
+  .save-btn { border: 2px solid var(--purple); background: var(--purple); color: #0B0A10; }
+  .save-btn:hover { background: #B58AEE; }
+  .cancel-btn { border: 1px solid var(--line); background: transparent; color: var(--ink); }
+  .cancel-btn:hover { border-color: var(--ink-soft); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <h1>Note journalière</h1>
+      <div class="subtitle">
+        <span id="greeting">Bonjour</span>
+        <button class="rename-link" id="renameLink">changer</button>
+      </div>
+    </div>
+    <div class="date-badge" id="dateBadge">—</div>
+  </header>
+
+  <div class="grid">
+
+    <!-- GAUGE -->
+    <div class="card gauge-card">
+      <h2>Aujourd'hui</h2>
+      <div class="gauge-shell">
+        <div class="tick-labels" id="tickLabels"></div>
+        <div class="gauge-tube" id="gaugeTube">
+          <div class="fill" id="fill"></div>
+        </div>
+      </div>
+      <div class="score-readout" id="scoreReadout">0<span> pts</span></div>
+      <div class="rank-pill" id="rankPill">Débutant</div>
+      <div class="rank-progress" id="rankProgress">
+        <div id="progressText">0 / 30 pts vers Bon</div>
+        <div class="bar"><div class="bar-fill" id="barFill"></div></div>
+      </div>
+
+      <div class="goal-box">
+        <div id="goalText">Objectif du jour : 150 pts</div>
+        <div class="bar"><div class="bar-fill" id="goalBarFill"></div></div>
+      </div>
+
+      <div class="legend" id="legend"></div>
+
+      <div class="tip-box" id="tipBox">
+        <div class="tip-label" id="tipLabel">Conseil</div>
+        <div class="tip-text" id="tipText">Chargement…</div>
+      </div>
+    </div>
+
+    <!-- FORM + BREAKDOWN -->
+    <div>
+      <div class="card">
+        <div class="card-head">
+          <h2>Ajouter une série</h2>
+          <button class="edit-btn" id="openEditBtn">Paramètres</button>
+        </div>
+        <div class="exercise-form" id="exerciseForm"></div>
+        <button class="add-btn" id="addBtn">Ajouter au score du jour</button>
+        <div class="flash" id="flashMsg"></div>
+
+        <div class="breakdown" id="breakdown"></div>
+      </div>
+
+      <div class="card chart-card">
+        <h2>Évolution</h2>
+        <div id="chartWrap"><div class="chart-empty">Le graphique apparaîtra ici dès que vous aurez au moins un jour d'historique.</div></div>
+      </div>
+
+      <div class="card records-card">
+        <h2>Vos records</h2>
+        <div id="recordsWrap"></div>
+      </div>
+
+      <div class="card history-card">
+        <h2>Historique</h2>
+        <div id="historyWrap">
+          <div class="history-empty">Rien pour l'instant.</div>
+        </div>
+        <div class="export-row">
+          <button class="ghost-btn" id="copyBtn">Copier le résumé du jour</button>
+          <button class="ghost-btn" id="exportBtn">Exporter l'historique (.csv)</button>
+        </div>
+        <div class="flash" id="exportFlash"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="modal-overlay" id="summaryOverlay">
+    <div class="modal-panel" style="max-width: 460px;">
+      <h2>Résumé du jour</h2>
+      <div class="modal-sub">Le texte est sélectionné automatiquement — copiez-le avec Ctrl+C (ou Cmd+C sur Mac), ou utilisez le bouton ci-dessous.</div>
+      <textarea id="summaryTextarea" readonly style="width:100%; min-height:160px; background:var(--stone-dark); border:1px solid var(--line); border-radius:10px; color:var(--ink); font-family:var(--font-mono); font-size:13px; padding:12px; resize:vertical;"></textarea>
+      <div class="modal-actions">
+        <button class="cancel-btn" id="closeSummaryBtn">Fermer</button>
+        <button class="save-btn" id="copyFromModalBtn">Copier</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    Vos données (exercices, historique, records, objectif, prénom) sont sauvegardées automatiquement dans ce navigateur, sur cet ordinateur. Elles restent d'une ouverture à l'autre du fichier tant que vous utilisez le même navigateur et ne videz pas ses données de site. Elles ne sont pas envoyées ailleurs et ne sont pas visibles depuis un autre appareil. Utilisez « Exporter » régulièrement si vous voulez une sauvegarde de secours.
+  </footer>
+
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-panel">
+    <h2>Paramètres</h2>
+    <div class="modal-sub">Votre prénom, votre objectif quotidien, et vos exercices.</div>
+
+    <div class="settings-field">
+      <label>Votre prénom</label>
+      <input type="text" id="settingsName" placeholder="Votre prénom">
+    </div>
+    <div class="settings-field">
+      <label>Objectif quotidien (points)</label>
+      <input type="number" min="0" step="10" id="settingsGoal" placeholder="150">
+    </div>
+
+    <div class="modal-section-title">Exercices</div>
+    <div class="ex-headrow">
+      <div>Nom</div><div>Points</div><div>Unité</div><div></div>
+    </div>
+    <div id="exEditList"></div>
+
+    <button class="add-ex-btn" id="addExBtn">+ Ajouter un exercice</button>
+
+    <div class="modal-actions">
+      <button class="cancel-btn" id="cancelEditBtn">Annuler</button>
+      <button class="save-btn" id="saveEditBtn">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const STORAGE_KEY = "note_journaliere_v1";
+
+  const RANKS = [
+    { name: "Débutant",           min: 0,   color: "var(--r1)", ink: "var(--r1-ink)" },
+    { name: "Bon",                min: 30,  color: "var(--r2)", ink: "var(--r2-ink)" },
+    { name: "Sportif",            min: 80,  color: "var(--r3)", ink: "var(--r3-ink)" },
+    { name: "Haut niveau",        min: 180, color: "var(--r4)", ink: "var(--r4-ink)" },
+    { name: "Performance extrême",min: 350, color: "var(--r5)", ink: "var(--r5-ink)" },
+  ];
+  const TUBE_CAP = 400;
+
+  function defaultExercises() {
+    return [
+      { id: "pompes",    name: "Pompes",    points: 2, unit: "répétition", decimal: false, value: 0 },
+      { id: "tractions", name: "Tractions", points: 4, unit: "répétition", decimal: false, value: 0 },
+      { id: "abdos",     name: "Abdos",     points: 1, unit: "répétition", decimal: false, value: 0 },
+      { id: "course",    name: "Course",    points: 8, unit: "km",         decimal: true,  value: 0 },
+    ];
+  }
+
+  function defaultState() {
+    return {
+      userName: "",
+      dayKey: todayKey(),
+      exercises: defaultExercises(),
+      history: [],
+      records: { bestScore: null, perExercise: {} },
+      dailyGoal: 150
+    };
+  }
+
+  function todayKey() {
+    const d = new Date();
+    return d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
+  }
+
+  function slugify(name) {
+    return 'ex_' + name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'') + '_' + Math.random().toString(36).slice(2,7);
+  }
+
+  let state = loadState();
+  finalizeDayIfNeeded();
+
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return defaultState();
+      const parsed = JSON.parse(raw);
+      const base = defaultState();
+      return {
+        userName: typeof parsed.userName === 'string' ? parsed.userName : base.userName,
+        dayKey: parsed.dayKey || base.dayKey,
+        exercises: Array.isArray(parsed.exercises) && parsed.exercises.length ? parsed.exercises : base.exercises,
+        history: Array.isArray(parsed.history) ? parsed.history : [],
+        records: parsed.records && typeof parsed.records === 'object' ? parsed.records : { bestScore: null, perExercise: {} },
+        dailyGoal: typeof parsed.dailyGoal === 'number' ? parsed.dailyGoal : base.dailyGoal
+      };
+    } catch (e) {
+      return defaultState();
+    }
+  }
+
+  function saveState() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+  }
+
+  function computeScore(s) {
+    return s.exercises.reduce((sum, ex) => sum + (ex.value * ex.points), 0);
+  }
+
+  function getRank(score) {
+    let current = RANKS[0], next = RANKS[1];
+    for (let i = 0; i < RANKS.length; i++) {
+      if (score >= RANKS[i].min) {
+        current = RANKS[i];
+        next = RANKS[i+1] || null;
+      }
+    }
+    return { current, next };
+  }
+
+  function updateRecordsFromToday() {
+    const score = computeScore(state);
+    const dayLabel = formatDayShort(state.dayKey);
+    if (!state.records.bestScore || score > state.records.bestScore.score) {
+      state.records.bestScore = { score, day: dayLabel };
+    }
+    state.exercises.forEach(ex => {
+      const cur = state.records.perExercise[ex.id];
+      if (!cur || ex.value > cur.value) {
+        state.records.perExercise[ex.id] = { value: ex.value, day: dayLabel, name: ex.name, unit: ex.unit };
+      }
+    });
+  }
+
+  function finalizeDayIfNeeded() {
+    const key = todayKey();
+    if (key !== state.dayKey) {
+      const score = computeScore(state);
+      if (score > 0) {
+        const { current } = getRank(score);
+        updateRecordsFromToday();
+        state.history.push({ day: state.dayKey, score, rank: current });
+      }
+      state.exercises = state.exercises.map(ex => ({ ...ex, value: 0 }));
+      state.dayKey = key;
+      saveState();
+    }
+  }
+
+  function formatDayShort(dayKey) {
+    const [y,m,d] = dayKey.split('-').map(Number);
+    const dt = new Date(y, m-1, d);
+    return dt.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+  }
+
+  function buildTubeBands() {
+    const tube = document.getElementById('gaugeTube');
+    const tickWrap = document.getElementById('tickLabels');
+    tube.querySelectorAll('.band, .goal-mark').forEach(b => b.remove());
+    tickWrap.innerHTML = '';
+    RANKS.forEach((r, i) => {
+      if (i === 0) return;
+      const pct = Math.min(100, (r.min / TUBE_CAP) * 100);
+      const band = document.createElement('div');
+      band.className = 'band';
+      band.style.bottom = pct + '%';
+      tube.insertBefore(band, document.getElementById('fill'));
+    });
+    const goalPct = Math.min(100, (state.dailyGoal / TUBE_CAP) * 100);
+    const mark = document.createElement('div');
+    mark.className = 'goal-mark';
+    mark.style.bottom = goalPct + '%';
+    tube.appendChild(mark);
+
+    [0, 30, 80, 180, 350, 400].forEach(v => {
+      const el = document.createElement('div');
+      el.textContent = v;
+      tickWrap.appendChild(el);
+    });
+  }
+
+  function buildLegend() {
+    const legend = document.getElementById('legend');
+    legend.innerHTML = '';
+    RANKS.forEach(r => {
+      const chip = document.createElement('div');
+      chip.className = 'legend-chip';
+      chip.innerHTML = `<span class="dot" style="background:${r.color}"></span>${r.name} · ${r.min}+`;
+      legend.appendChild(chip);
+    });
+  }
+
+  function buildForm() {
+    const form = document.getElementById('exerciseForm');
+    form.innerHTML = '';
+    state.exercises.forEach(ex => {
+      const field = document.createElement('div');
+      field.className = 'field';
+      field.innerHTML = `
+        <label>${ex.name} <span class="pts">${ex.points} pts / ${ex.unit}</span></label>
+        <input type="number" min="0" ${ex.decimal ? 'step="0.1"' : 'step="1"'} inputmode="${ex.decimal ? 'decimal' : 'numeric'}" placeholder="0" data-ex-id="${ex.id}">
+      `;
+      form.appendChild(field);
+    });
+  }
+
+  function buildBreakdown() {
+    const bd = document.getElementById('breakdown');
+    bd.innerHTML = '';
+    state.exercises.forEach(ex => {
+      const item = document.createElement('div');
+      item.className = 'bd-item';
+      const displayVal = ex.decimal ? ex.value : Math.round(ex.value);
+      item.innerHTML = `<div class="label">${ex.name}</div><div class="val">${displayVal} ${ex.unit === 'km' ? 'km' : ''} (${Math.round(ex.value*ex.points)} pts)</div>`;
+      bd.appendChild(item);
+    });
+  }
+
+  function buildRecords() {
+    const wrap = document.getElementById('recordsWrap');
+    wrap.innerHTML = '';
+    if (!state.records.bestScore && Object.keys(state.records.perExercise).length === 0) {
+      wrap.innerHTML = '<div class="chart-empty">Vos records apparaîtront ici après votre première journée enregistrée.</div>';
+      return;
+    }
+    if (state.records.bestScore) {
+      const row = document.createElement('div');
+      row.className = 'record-row';
+      row.innerHTML = `<span class="rlabel">Meilleur score en une journée</span><span><span class="rval">${Math.round(state.records.bestScore.score)} pts</span><span class="rday">${state.records.bestScore.day}</span></span>`;
+      wrap.appendChild(row);
+    }
+    Object.values(state.records.perExercise).forEach(rec => {
+      if (rec.value <= 0) return;
+      const row = document.createElement('div');
+      row.className = 'record-row';
+      const displayVal = rec.unit === 'km' ? rec.value : Math.round(rec.value);
+      row.innerHTML = `<span class="rlabel">${rec.name} — meilleur jour</span><span><span class="rval">${displayVal} ${rec.unit === 'km' ? 'km' : ''}</span><span class="rday">${rec.day}</span></span>`;
+      wrap.appendChild(row);
+    });
+  }
+
+  function buildChart() {
+    const wrap = document.getElementById('chartWrap');
+    const points = state.history.slice(-13).map(h => ({ day: formatDayShort(h.day), score: h.score }));
+    points.push({ day: "Auj.", score: computeScore(state) });
+
+    if (points.length < 2) {
+      wrap.innerHTML = '<div class="chart-empty">Le graphique apparaîtra ici dès que vous aurez au moins un jour d\'historique.</div>';
+      return;
+    }
+
+    const w = 560, h = 170, padL = 34, padR = 12, padT = 14, padB = 24;
+    const maxVal = Math.max(state.dailyGoal, ...points.map(p => p.score), 10) * 1.1;
+    const stepX = (w - padL - padR) / (points.length - 1);
+    const toX = i => padL + i * stepX;
+    const toY = v => padT + (1 - v / maxVal) * (h - padT - padB);
+
+    let path = points.map((p,i) => `${i===0?'M':'L'} ${toX(i).toFixed(1)} ${toY(p.score).toFixed(1)}`).join(' ');
+    const goalY = toY(state.dailyGoal).toFixed(1);
+
+    let circles = points.map((p,i) => `<circle cx="${toX(i).toFixed(1)}" cy="${toY(p.score).toFixed(1)}" r="3.5" fill="${i===points.length-1 ? '#EFC24C' : '#9B6DE0'}" />`).join('');
+    let labels = points.map((p,i) => `<text x="${toX(i).toFixed(1)}" y="${h-6}" font-size="9" fill="#9A93AD" text-anchor="middle" font-family="IBM Plex Mono, monospace">${p.day}</text>`).join('');
+
+    wrap.innerHTML = `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}">
+      <line x1="${padL}" y1="${goalY}" x2="${w-padR}" y2="${goalY}" stroke="#EFC24C" stroke-width="1" stroke-dasharray="4 4" opacity="0.6" />
+      <path d="${path}" fill="none" stroke="#9B6DE0" stroke-width="2.5" />
+      ${circles}
+      ${labels}
+    </svg>`;
+  }
+
+  function render() {
+    const score = computeScore(state);
+    const { current, next } = getRank(score);
+
+    document.getElementById('greeting').textContent = state.userName ? `Bonjour, ${state.userName}` : "Bonjour";
+
+    document.getElementById('scoreReadout').innerHTML = Math.round(score) + '<span> pts</span>';
+
+    const pill = document.getElementById('rankPill');
+    pill.textContent = current.name;
+    pill.style.background = current.color;
+    pill.style.color = current.ink;
+
+    const fill = document.getElementById('fill');
+    const pct = Math.min(100, (score / TUBE_CAP) * 100);
+    fill.style.height = pct + '%';
+    fill.classList.toggle('extreme', current.name === "Performance extrême");
+    if (current.name !== "Performance extrême") {
+      fill.style.background = current.color;
+      fill.style.boxShadow = 'none';
+    }
+
+    const progressText = document.getElementById('progressText');
+    const barFill = document.getElementById('barFill');
+    if (next) {
+      const span = next.min - current.min;
+      const done = Math.min(span, score - current.min);
+      progressText.textContent = `${Math.round(score)} / ${next.min} pts vers ${next.name}`;
+      barFill.style.width = Math.max(0, (done/span)*100) + '%';
+      barFill.style.background = next.color;
+    } else {
+      progressText.textContent = `Rang maximal atteint — ${Math.round(score)} pts`;
+      barFill.style.width = '100%';
+      barFill.style.background = current.color;
+    }
+
+    const goalPct = state.dailyGoal > 0 ? Math.min(100, (score / state.dailyGoal) * 100) : 0;
+    document.getElementById('goalText').textContent = score >= state.dailyGoal && state.dailyGoal > 0
+      ? `Objectif du jour atteint — ${Math.round(score)} / ${state.dailyGoal} pts 🎉`
+      : `Objectif du jour : ${Math.round(score)} / ${state.dailyGoal} pts`;
+    document.getElementById('goalBarFill').style.width = goalPct + '%';
+
+    buildBreakdown();
+    buildRecords();
+    buildChart();
+
+    document.getElementById('dateBadge').textContent = new Date().toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: 'short' });
+
+    renderHistory();
+    saveState();
+  }
+
+  function renderHistory() {
+    const wrap = document.getElementById('historyWrap');
+    if (state.history.length === 0) {
+      wrap.innerHTML = '<div class="history-empty">Rien pour l\'instant — vos jours précédents apparaîtront ici.</div>';
+      return;
+    }
+    const list = document.createElement('div');
+    list.className = 'history-list';
+    state.history.slice().reverse().forEach(h => {
+      const item = document.createElement('div');
+      item.className = 'history-item';
+      item.innerHTML = `<div class="day">${formatDayShort(h.day)}</div><div class="pts">${Math.round(h.score)}</div><div class="rank" style="color:${h.rank.ink}">${h.rank.name}</div>`;
+      list.appendChild(item);
+    });
+    wrap.innerHTML = '';
+    wrap.appendChild(list);
+  }
+
+  function flash(msg) {
+    const el = document.getElementById('flashMsg');
+    el.textContent = msg;
+    setTimeout(() => { if (el.textContent === msg) el.textContent = ''; }, 2200);
+  }
+
+  document.getElementById('addBtn').addEventListener('click', () => {
+    const inputs = document.querySelectorAll('#exerciseForm input[data-ex-id]');
+    let any = false;
+    inputs.forEach(inp => {
+      const v = parseFloat(inp.value) || 0;
+      if (v !== 0) any = true;
+      const ex = state.exercises.find(e => e.id === inp.dataset.exId);
+      if (ex) ex.value = Math.round((ex.value + v) * 10) / 10;
+    });
+
+    if (!any) {
+      flash("Entrez au moins une valeur avant d'ajouter.");
+      return;
+    }
+
+    inputs.forEach(inp => inp.value = '');
+    updateRecordsFromToday();
+    flash("Ajouté au score du jour.");
+    render();
+  });
+
+  setInterval(() => {
+    const before = state.dayKey;
+    finalizeDayIfNeeded();
+    if (before !== state.dayKey) {
+      buildTubeBands();
+      buildForm();
+      render();
+      flash("Nouveau jour — le score a été remis à zéro.");
+    }
+  }, 30000);
+
+  const TIPS = [
+    { type: "sport", text: "Hydratez-vous avant et après l'effort, pas seulement pendant." },
+    { type: "sport", text: "Échauffez-vous bien pour éviter les blessures, même sur une séance courte." },
+    { type: "sport", text: "Étirez-vous doucement après l'effort pour favoriser la récupération." },
+    { type: "sport", text: "Respectez au moins un jour de repos entre deux séances intenses." },
+    { type: "sport", text: "Dormez suffisamment : c'est pendant le sommeil que le muscle progresse." },
+    { type: "sport", text: "Une bonne technique compte plus que le nombre de répétitions." },
+    { type: "sport", text: "Écoutez votre corps — une douleur vive n'est jamais normale." },
+    { type: "sport", text: "Variez les exercices pour éviter les déséquilibres musculaires." },
+    { type: "nutrition", text: "Mangez des protéines dans l'heure qui suit l'effort pour bien récupérer." },
+    { type: "nutrition", text: "Buvez de l'eau régulièrement dans la journée, pas seulement pendant le sport." },
+    { type: "nutrition", text: "Un fruit et des glucides complexes avant l'effort évitent le coup de fatigue." },
+    { type: "nutrition", text: "Évitez de vous entraîner à jeun sur un effort long ou intense." },
+    { type: "nutrition", text: "Les féculents complets (riz, pâtes, avoine) rechargent bien vos réserves d'énergie." },
+    { type: "nutrition", text: "Pensez aux électrolytes (sel, potassium) lors d'un effort long ou par forte chaleur." }
+  ];
+  let tipIndex = 0;
+
+  function rotateTip() {
+    const el = document.getElementById('tipText');
+    const lbl = document.getElementById('tipLabel');
+    el.classList.add('fading');
+    setTimeout(() => {
+      tipIndex = (tipIndex + 1) % TIPS.length;
+      el.textContent = TIPS[tipIndex].text;
+      lbl.textContent = TIPS[tipIndex].type === 'nutrition' ? 'Conseil nutrition' : 'Conseil sportif';
+      el.classList.remove('fading');
+    }, 400);
+  }
+
+  function initTips() {
+    document.getElementById('tipText').textContent = TIPS[0].text;
+    document.getElementById('tipLabel').textContent = TIPS[0].type === 'nutrition' ? 'Conseil nutrition' : 'Conseil sportif';
+    setInterval(rotateTip, 7000);
+  }
+
+  function exportFlash(msg) {
+    const el = document.getElementById('exportFlash');
+    el.textContent = msg;
+    setTimeout(() => { if (el.textContent === msg) el.textContent = ''; }, 2500);
+  }
+
+  document.getElementById('copyBtn').addEventListener('click', () => {
+    const score = computeScore(state);
+    const { current } = getRank(score);
+    const dateStr = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+    let lines = state.exercises.map(ex => `${ex.name} : ${ex.decimal ? ex.value : Math.round(ex.value)} ${ex.unit === 'km' ? 'km' : ''} (${Math.round(ex.value*ex.points)} pts)`).join("\n");
+    const name = state.userName ? ` (${state.userName})` : "";
+    const summary = `Note journalière${name} — ${dateStr}\n${lines}\nScore total : ${Math.round(score)} pts — Rang : ${current.name}`;
+
+    const textarea = document.getElementById('summaryTextarea');
+    textarea.value = summary;
+    document.getElementById('summaryOverlay').classList.add('open');
+    textarea.focus();
+    textarea.select();
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(summary).catch(() => {});
+    }
+  });
+
+  document.getElementById('closeSummaryBtn').addEventListener('click', () => {
+    document.getElementById('summaryOverlay').classList.remove('open');
+  });
+  document.getElementById('summaryOverlay').addEventListener('click', (e) => {
+    if (e.target.id === 'summaryOverlay') document.getElementById('summaryOverlay').classList.remove('open');
+  });
+
+  document.getElementById('copyFromModalBtn').addEventListener('click', () => {
+    const textarea = document.getElementById('summaryTextarea');
+    textarea.focus();
+    textarea.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(textarea.value).catch(() => {});
+    }
+    exportFlash(ok ? "Copié !" : "Sélectionné — utilisez Ctrl+C pour copier.");
+  });
+
+  document.getElementById('exportBtn').addEventListener('click', () => {
+    const score = computeScore(state);
+    const { current } = getRank(score);
+    const exNames = state.exercises.map(e => e.name);
+    const rows = [["jour", ...exNames, "score", "rang"]];
+    rows.push([state.dayKey + " (en cours)", ...state.exercises.map(e => e.value), Math.round(score), current.name]);
+    state.history.forEach(h => {
+      rows.push([h.day, ...exNames.map(() => ""), Math.round(h.score), h.rank.name]);
+    });
+
+    const csv = rows.map(r => r.join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = "note-journaliere-historique.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    exportFlash("Fichier téléchargé — vous pouvez me l'envoyer dans le chat.");
+  });
+
+  /* ---- SETTINGS MODAL ---- */
+  let editBuffer = [];
+
+  function openEditModal() {
+    document.getElementById('settingsName').value = state.userName || "";
+    document.getElementById('settingsGoal').value = state.dailyGoal;
+    editBuffer = state.exercises.map(ex => ({ ...ex }));
+    renderEditList();
+    document.getElementById('modalOverlay').classList.add('open');
+  }
+
+  function closeEditModal() {
+    document.getElementById('modalOverlay').classList.remove('open');
+  }
+
+  function renderEditList() {
+    const list = document.getElementById('exEditList');
+    list.innerHTML = '';
+    editBuffer.forEach((ex, idx) => {
+      const row = document.createElement('div');
+      row.className = 'ex-row';
+      row.innerHTML = `
+        <input type="text" value="${ex.name}" data-field="name" data-idx="${idx}">
+        <input type="number" min="0" step="0.5" value="${ex.points}" data-field="points" data-idx="${idx}">
+        <input type="text" value="${ex.unit}" data-field="unit" data-idx="${idx}">
+        <button class="remove-btn" data-remove="${idx}" title="Supprimer">×</button>
+      `;
+      list.appendChild(row);
+    });
+
+    list.querySelectorAll('input').forEach(inp => {
+      inp.addEventListener('input', (e) => {
+        const idx = parseInt(e.target.dataset.idx, 10);
+        const field = e.target.dataset.field;
+        if (field === 'points') {
+          editBuffer[idx][field] = parseFloat(e.target.value) || 0;
+        } else {
+          editBuffer[idx][field] = e.target.value;
+        }
+      });
+    });
+
+    list.querySelectorAll('[data-remove]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const idx = parseInt(e.target.dataset.remove, 10);
+        editBuffer.splice(idx, 1);
+        renderEditList();
+      });
+    });
+  }
+
+  document.getElementById('addExBtn').addEventListener('click', () => {
+    editBuffer.push({ id: slugify('exercice'), name: "Nouvel exercice", points: 1, unit: "répétition", decimal: false, value: 0 });
+    renderEditList();
+  });
+
+  document.getElementById('openEditBtn').addEventListener('click', openEditModal);
+  document.getElementById('renameLink').addEventListener('click', openEditModal);
+  document.getElementById('cancelEditBtn').addEventListener('click', closeEditModal);
+  document.getElementById('modalOverlay').addEventListener('click', (e) => {
+    if (e.target.id === 'modalOverlay') closeEditModal();
+  });
+
+  document.getElementById('saveEditBtn').addEventListener('click', () => {
+    const cleaned = editBuffer
+      .filter(ex => ex.name.trim() !== '')
+      .map(ex => ({
+        ...ex,
+        name: ex.name.trim(),
+        unit: ex.unit.trim() || 'unité',
+        points: ex.points || 0,
+        decimal: /km|kilom|litre|heure/i.test(ex.unit),
+      }));
+
+    if (cleaned.length === 0) {
+      exportFlash("Gardez au moins un exercice.");
+      return;
+    }
+
+    state.userName = document.getElementById('settingsName').value.trim();
+    state.dailyGoal = parseFloat(document.getElementById('settingsGoal').value) || 0;
+    state.exercises = cleaned;
+
+    buildTubeBands();
+    buildForm();
+    render();
+    closeEditModal();
+    flash("Paramètres mis à jour.");
+  });
+
+  buildTubeBands();
+  buildLegend();
+  buildForm();
+  initTips();
+  render();
+
+  if (!state.userName) {
+    openEditModal();
+  }
+</script>
+</body>
+</html>
