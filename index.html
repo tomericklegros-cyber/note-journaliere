@@ -78,6 +78,19 @@
     margin: 0;
   }
 
+  .header-title {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .app-logo {
+    width: 56px;
+    height: 56px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    box-shadow: 0 0 0 1px rgba(233,201,122,0.3), 0 4px 16px rgba(0,0,0,0.4);
+  }
+
   .subtitle { color: var(--ink-soft); font-size: 14px; margin-top: 4px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .subtitle .rename-link { color: var(--purple); cursor: pointer; font-size: 12px; text-decoration: underline; background: none; border: none; padding: 0; font-family: var(--font-body); }
 
@@ -765,11 +778,76 @@
 
 
   <header>
-    <div>
-      <h1>Note journalière</h1>
-      <div class="subtitle">
-        <span id="greeting">Bonjour</span>
-        <button class="rename-link" id="renameLink">changer</button>
+    <div class="header-title">
+      <svg class="app-logo" viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="sky" cx="35%" cy="55%" r="75%">
+            <stop offset="0%" stop-color="#3a4a63"/>
+            <stop offset="55%" stop-color="#1c2740"/>
+            <stop offset="100%" stop-color="#0d1220"/>
+          </radialGradient>
+          <radialGradient id="sun" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#fff6d8"/>
+            <stop offset="45%" stop-color="#ffd97a"/>
+            <stop offset="100%" stop-color="#f2a93c" stop-opacity="0"/>
+          </radialGradient>
+          <linearGradient id="water" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#101a2e"/>
+            <stop offset="100%" stop-color="#060a14"/>
+          </linearGradient>
+          <linearGradient id="reflection" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#ffe8ad" stop-opacity="0.95"/>
+            <stop offset="100%" stop-color="#ffe8ad" stop-opacity="0"/>
+          </linearGradient>
+          <clipPath id="circleClip">
+            <circle cx="300" cy="300" r="290"/>
+          </clipPath>
+        </defs>
+        <circle cx="300" cy="300" r="296" fill="none" stroke="#e9c97a" stroke-width="3"/>
+        <g clip-path="url(#circleClip)">
+          <rect x="0" y="0" width="600" height="600" fill="url(#sky)"/>
+          <circle cx="230" cy="330" r="150" fill="url(#sun)"/>
+          <circle cx="230" cy="330" r="46" fill="#fff2c2"/>
+          <ellipse cx="150" cy="230" rx="220" ry="18" fill="#5a6b87" opacity="0.35"/>
+          <ellipse cx="330" cy="270" rx="180" ry="14" fill="#7c8ba6" opacity="0.3"/>
+          <ellipse cx="120" cy="380" rx="160" ry="16" fill="#2a3450" opacity="0.5"/>
+          <rect x="0" y="392" width="600" height="4" fill="#0a0f1c"/>
+          <rect x="0" y="396" width="600" height="204" fill="url(#water)"/>
+          <polygon points="185,396 275,396 235,600 100,600" fill="url(#reflection)"/>
+          <rect x="0" y="396" width="600" height="204" fill="#060a14" opacity="0.15"/>
+          <g fill="#05070c">
+            <path d="M430,150 c-10,-22 14,-40 34,-38 c8,-16 34,-18 42,-2 c22,-4 36,18 26,34 c14,10 10,32 -6,38 c2,16 -12,28 -28,24 c-6,14 -26,16 -34,4 c-16,4 -30,-8 -28,-24 c-14,-6 -18,-24 -6,-36 z" />
+            <path d="M418,192 q-6,34 6,54 q10,16 -2,26 l-4,18 h60 l-2,-20 q-14,-8 -8,-26 q10,-22 4,-52 z"/>
+            <path d="M398,282
+                     q-30,10 -34,46
+                     l-10,140
+                     q-4,26 6,44
+                     l-10,88 h190
+                     l-8,-90
+                     q10,-18 4,-44
+                     l-14,-138
+                     q-6,-34 -34,-46
+                     q-40,-14 -90,0 z"/>
+            <path d="M470,300
+                     q34,-4 66,-16
+                     l150,-56
+                     q14,-6 22,4
+                     q6,10 -6,18
+                     l-146,64
+                     q-30,14 -60,16 z"/>
+            <path d="M676,222 q14,-8 22,-2 q8,6 0,16 q10,4 4,16 q10,6 0,16 q-14,10 -30,0
+                     l-22,-14 q-8,-8 4,-16 z"/>
+            <rect x="560" y="292" width="10" height="26" rx="3" fill="#e9c97a" opacity="0.85"/>
+          </g>
+        </g>
+        <circle cx="300" cy="300" r="290" fill="none" stroke="#0d1220" stroke-width="6"/>
+      </svg>
+      <div>
+        <h1>Note journalière</h1>
+        <div class="subtitle">
+          <span id="greeting">Bonjour</span>
+          <button class="rename-link" id="renameLink">changer</button>
+        </div>
       </div>
     </div>
     <div class="date-badge" id="dateBadge">—</div>
@@ -811,7 +889,6 @@
       <div class="card app-section" id="section-form">
         <div class="card-head">
           <h2>Ajouter une série</h2>
-          <button class="edit-btn" id="openEditBtn">Paramètres</button>
         </div>
         <div class="exercise-form" id="exerciseForm"></div>
         <button class="add-btn" id="addBtn">Ajouter au score du jour</button>
@@ -1429,7 +1506,6 @@
     renderEditList();
   });
 
-  document.getElementById('openEditBtn').addEventListener('click', openEditModal);
   document.getElementById('renameLink').addEventListener('click', openEditModal);
   document.getElementById('cancelEditBtn').addEventListener('click', closeEditModal);
   document.getElementById('modalOverlay').addEventListener('click', (e) => {
