@@ -93,15 +93,11 @@
   }
 
   .grid {
-    display: grid;
-    grid-template-columns: 300px 1fr;
-    gap: 24px;
-    align-items: start;
+    display: block;
   }
 
-  @media (max-width: 720px) {
-    .grid { grid-template-columns: 1fr; }
-  }
+  .app-section { display: none; }
+  .app-section.active { display: block; }
 
   .card {
     background: var(--card);
@@ -468,6 +464,157 @@
     line-height: 1.5;
   }
 
+  .welcome-banner {
+    background: linear-gradient(90deg, rgba(155,109,224,0.18), rgba(155,109,224,0.05));
+    border-bottom: 1px solid var(--purple-soft);
+    padding: 14px 20px;
+  }
+  .welcome-banner-inner {
+    max-width: 1080px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .welcome-banner p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--ink);
+  }
+  .welcome-banner strong { color: var(--purple); }
+  .welcome-close {
+    flex: 0 0 auto;
+    background: transparent;
+    border: 1px solid var(--purple-soft);
+    color: var(--ink-soft);
+    width: 26px; height: 26px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 15px;
+    line-height: 1;
+  }
+  .welcome-close:hover { border-color: var(--purple); color: var(--ink); }
+
+  /* ---- RECORD CELEBRATION ---- */
+  .confetti-piece {
+    position: fixed;
+    top: -20px;
+    width: 8px;
+    height: 14px;
+    z-index: 200;
+    opacity: 0.95;
+    pointer-events: none;
+    animation-name: confettiFall;
+    animation-timing-function: cubic-bezier(.3,.6,.6,1);
+    animation-fill-mode: forwards;
+  }
+  @keyframes confettiFall {
+    0%   { transform: translateY(0) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(110vh) rotate(540deg); opacity: 0.4; }
+  }
+
+  .record-banner {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-20px);
+    background: linear-gradient(90deg, var(--r5-gold), var(--r5));
+    color: #2A0004;
+    font-family: var(--font-display);
+    font-size: 20px;
+    letter-spacing: 0.03em;
+    padding: 14px 26px;
+    border-radius: 999px;
+    box-shadow: 0 10px 30px rgba(217,69,90,0.4);
+    z-index: 210;
+    opacity: 0;
+    transition: opacity 0.4s ease, transform 0.4s ease;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .record-banner.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* ---- SIDE NAV ---- */
+  .side-nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 210px;
+    background: var(--card);
+    border-right: 1px solid var(--line);
+    padding: 20px 14px;
+    z-index: 100;
+    overflow-y: auto;
+    transition: transform 0.25s ease;
+  }
+  .side-nav-title {
+    font-family: var(--font-display);
+    font-size: 20px;
+    letter-spacing: 0.3px;
+    margin: 4px 6px 18px;
+    color: var(--purple);
+  }
+  .side-nav button {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    color: var(--ink-soft);
+    background: transparent;
+    text-decoration: none;
+    font-size: 14px;
+    font-family: var(--font-body);
+    font-weight: 600;
+    margin-bottom: 4px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    width: 100%;
+    text-align: left;
+  }
+  .side-nav button:hover { background: rgba(155,109,224,0.1); color: var(--ink); }
+  .side-nav button.active { background: rgba(155,109,224,0.16); color: var(--ink); border-color: var(--purple-soft); }
+  .side-nav button .nav-ico { font-size: 15px; width: 18px; text-align: center; }
+
+  .nav-toggle {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 110;
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    border: 1px solid var(--purple-soft);
+    background: var(--card);
+    color: var(--ink);
+    font-size: 18px;
+    cursor: pointer;
+    display: none;
+  }
+
+  .nav-scrim {
+    position: fixed;
+    inset: 0;
+    background: rgba(6,5,10,0.6);
+    z-index: 95;
+    display: none;
+  }
+
+  .app-body { padding-left: 210px; }
+
+  @media (max-width: 880px) {
+    .side-nav { transform: translateX(-100%); box-shadow: 0 0 40px rgba(0,0,0,0.5); }
+    .side-nav.open { transform: translateX(0); }
+    .nav-toggle { display: block; }
+    .nav-scrim.open { display: block; }
+    .app-body { padding-left: 0; padding-top: 56px; }
+  }
+
   /* ---- MODAL ---- */
   .modal-overlay {
     position: fixed;
@@ -593,7 +740,29 @@
 </style>
 </head>
 <body>
+
+<button class="nav-toggle" id="navToggle" title="Menu">☰</button>
+<div class="nav-scrim" id="navScrim"></div>
+
+<nav class="side-nav" id="sideNav">
+  <div class="side-nav-title">Note journalière</div>
+  <button type="button" class="nav-item" data-target="section-today"><span class="nav-ico">📊</span> Aujourd'hui</button>
+  <button type="button" class="nav-item" data-target="section-form"><span class="nav-ico">➕</span> Ajouter une série</button>
+  <button type="button" class="nav-item" data-target="section-chart"><span class="nav-ico">📈</span> Évolution</button>
+  <button type="button" class="nav-item" data-target="section-records"><span class="nav-ico">🏆</span> Records</button>
+  <button type="button" class="nav-item" data-target="section-history"><span class="nav-ico">🗂️</span> Historique</button>
+  <button type="button" class="nav-item" id="navSettingsLink"><span class="nav-ico">⚙️</span> Paramètres</button>
+</nav>
+
+<div class="app-body">
+<div class="welcome-banner" id="welcomeBanner">
+  <div class="welcome-banner-inner">
+    <p><strong>Bienvenue dans Note journalière 👋</strong> — enregistrez vos pompes, tractions, abdos et course, gagnez des points, et grimpez les rangs jusqu'à Performance extrême.</p>
+    <button class="welcome-close" id="welcomeClose" title="Fermer">×</button>
+  </div>
+</div>
 <div class="wrap">
+
 
   <header>
     <div>
@@ -609,7 +778,7 @@
   <div class="grid">
 
     <!-- GAUGE -->
-    <div class="card gauge-card">
+    <div class="card gauge-card app-section" id="section-today">
       <h2>Aujourd'hui</h2>
       <div class="gauge-shell">
         <div class="tick-labels" id="tickLabels"></div>
@@ -639,7 +808,7 @@
 
     <!-- FORM + BREAKDOWN -->
     <div>
-      <div class="card">
+      <div class="card app-section" id="section-form">
         <div class="card-head">
           <h2>Ajouter une série</h2>
           <button class="edit-btn" id="openEditBtn">Paramètres</button>
@@ -651,17 +820,17 @@
         <div class="breakdown" id="breakdown"></div>
       </div>
 
-      <div class="card chart-card">
+      <div class="card chart-card app-section" id="section-chart">
         <h2>Évolution</h2>
         <div id="chartWrap"><div class="chart-empty">Le graphique apparaîtra ici dès que vous aurez au moins un jour d'historique.</div></div>
       </div>
 
-      <div class="card records-card">
+      <div class="card records-card app-section" id="section-records">
         <h2>Vos records</h2>
         <div id="recordsWrap"></div>
       </div>
 
-      <div class="card history-card">
+      <div class="card history-card app-section" id="section-history">
         <h2>Historique</h2>
         <div id="historyWrap">
           <div class="history-empty">Rien pour l'instant.</div>
@@ -692,6 +861,7 @@
     Vos données (exercices, historique, records, objectif, prénom) sont sauvegardées automatiquement dans ce navigateur, sur cet ordinateur. Elles restent d'une ouverture à l'autre du fichier tant que vous utilisez le même navigateur et ne videz pas ses données de site. Elles ne sont pas envoyées ailleurs et ne sont pas visibles depuis un autre appareil. Utilisez « Exporter » régulièrement si vous voulez une sauvegarde de secours.
   </footer>
 
+</div>
 </div>
 
 <div class="modal-overlay" id="modalOverlay">
@@ -808,8 +978,10 @@
   function updateRecordsFromToday() {
     const score = computeScore(state);
     const dayLabel = formatDayShort(state.dayKey);
+    let newBest = false;
     if (!state.records.bestScore || score > state.records.bestScore.score) {
       state.records.bestScore = { score, day: dayLabel };
+      newBest = true;
     }
     state.exercises.forEach(ex => {
       const cur = state.records.perExercise[ex.id];
@@ -817,6 +989,7 @@
         state.records.perExercise[ex.id] = { value: ex.value, day: dayLabel, name: ex.name, unit: ex.unit };
       }
     });
+    return newBest;
   }
 
   function finalizeDayIfNeeded() {
@@ -1032,7 +1205,35 @@
     setTimeout(() => { if (el.textContent === msg) el.textContent = ''; }, 2200);
   }
 
+  function celebrateRecord() {
+    const colors = ['#9B6DE0', '#EFC24C', '#D9455A', '#45AD7A', '#5FA9D6'];
+    for (let i = 0; i < 60; i++) {
+      const piece = document.createElement('div');
+      piece.className = 'confetti-piece';
+      piece.style.left = Math.random() * 100 + 'vw';
+      piece.style.background = colors[Math.floor(Math.random() * colors.length)];
+      piece.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+      const duration = 1.8 + Math.random() * 1.4;
+      const delay = Math.random() * 0.4;
+      piece.style.animationDuration = duration + 's';
+      piece.style.animationDelay = delay + 's';
+      document.body.appendChild(piece);
+      setTimeout(() => piece.remove(), (duration + delay) * 1000 + 200);
+    }
+
+    const banner = document.createElement('div');
+    banner.className = 'record-banner';
+    banner.textContent = "🏆 Nouveau record personnel !";
+    document.body.appendChild(banner);
+    requestAnimationFrame(() => banner.classList.add('show'));
+    setTimeout(() => {
+      banner.classList.remove('show');
+      setTimeout(() => banner.remove(), 500);
+    }, 2600);
+  }
+
   document.getElementById('addBtn').addEventListener('click', () => {
+    const prevBest = state.records.bestScore ? state.records.bestScore.score : 0;
     const inputs = document.querySelectorAll('#exerciseForm input[data-ex-id]');
     let any = false;
     inputs.forEach(inp => {
@@ -1048,9 +1249,14 @@
     }
 
     inputs.forEach(inp => inp.value = '');
-    updateRecordsFromToday();
-    flash("Ajouté au score du jour.");
+    const gotNewBest = updateRecordsFromToday();
     render();
+
+    if (gotNewBest && prevBest > 0) {
+      celebrateRecord();
+    } else {
+      flash("Ajouté au score du jour.");
+    }
   });
 
   setInterval(() => {
@@ -1266,6 +1472,61 @@
   if (!state.userName) {
     openEditModal();
   }
+
+  const WELCOME_KEY = "note_journaliere_welcome_dismissed";
+  const welcomeBanner = document.getElementById('welcomeBanner');
+  try {
+    if (localStorage.getItem(WELCOME_KEY) === "1") {
+      welcomeBanner.style.display = "none";
+    }
+  } catch (e) {}
+  document.getElementById('welcomeClose').addEventListener('click', () => {
+    welcomeBanner.style.display = "none";
+    try { localStorage.setItem(WELCOME_KEY, "1"); } catch (e) {}
+  });
+
+  /* ---- SIDE NAV ---- */
+  const sideNav = document.getElementById('sideNav');
+  const navToggle = document.getElementById('navToggle');
+  const navScrim = document.getElementById('navScrim');
+
+  function openNav() {
+    sideNav.classList.add('open');
+    navScrim.classList.add('open');
+  }
+  function closeNav() {
+    sideNav.classList.remove('open');
+    navScrim.classList.remove('open');
+  }
+  navToggle.addEventListener('click', () => {
+    sideNav.classList.contains('open') ? closeNav() : openNav();
+  });
+  navScrim.addEventListener('click', closeNav);
+
+  const navButtons = Array.from(document.querySelectorAll('.side-nav button[data-target]'));
+
+  function showSection(targetId) {
+    document.querySelectorAll('.app-section').forEach(sec => {
+      sec.classList.toggle('active', sec.id === targetId);
+    });
+    navButtons.forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.target === targetId);
+    });
+  }
+
+  navButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      showSection(btn.dataset.target);
+      closeNav();
+    });
+  });
+
+  document.getElementById('navSettingsLink').addEventListener('click', () => {
+    closeNav();
+    openEditModal();
+  });
+
+  showSection('section-today');
 </script>
 </body>
 </html>
