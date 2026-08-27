@@ -760,7 +760,6 @@
 <nav class="side-nav" id="sideNav">
   <div class="side-nav-title">Note journalière</div>
   <button type="button" class="nav-item" data-target="section-today"><span class="nav-ico">📊</span> Aujourd'hui</button>
-  <button type="button" class="nav-item" data-target="section-form"><span class="nav-ico">➕</span> Ajouter une série</button>
   <button type="button" class="nav-item" data-target="section-chart"><span class="nav-ico">📈</span> Évolution</button>
   <button type="button" class="nav-item" data-target="section-records"><span class="nav-ico">🏆</span> Records</button>
   <button type="button" class="nav-item" data-target="section-history"><span class="nav-ico">🗂️</span> Historique</button>
@@ -855,38 +854,37 @@
 
   <div class="grid">
 
-    <!-- GAUGE -->
-    <div class="card gauge-card app-section" id="section-today">
-      <h2>Aujourd'hui</h2>
-      <div class="gauge-shell">
-        <div class="tick-labels" id="tickLabels"></div>
-        <div class="gauge-tube" id="gaugeTube">
-          <div class="fill" id="fill"></div>
+    <!-- GAUGE + FORM -->
+    <div class="app-section" id="section-today">
+      <div class="card gauge-card">
+        <h2>Aujourd'hui</h2>
+        <div class="gauge-shell">
+          <div class="tick-labels" id="tickLabels"></div>
+          <div class="gauge-tube" id="gaugeTube">
+            <div class="fill" id="fill"></div>
+          </div>
+        </div>
+        <div class="score-readout" id="scoreReadout">0<span> pts</span></div>
+        <div class="rank-pill" id="rankPill">Débutant</div>
+        <div class="rank-progress" id="rankProgress">
+          <div id="progressText">0 / 30 pts vers Bon</div>
+          <div class="bar"><div class="bar-fill" id="barFill"></div></div>
+        </div>
+
+        <div class="goal-box">
+          <div id="goalText">Objectif du jour : 150 pts</div>
+          <div class="bar"><div class="bar-fill" id="goalBarFill"></div></div>
+        </div>
+
+        <div class="legend" id="legend"></div>
+
+        <div class="tip-box" id="tipBox">
+          <div class="tip-label" id="tipLabel">Conseil</div>
+          <div class="tip-text" id="tipText">Chargement…</div>
         </div>
       </div>
-      <div class="score-readout" id="scoreReadout">0<span> pts</span></div>
-      <div class="rank-pill" id="rankPill">Débutant</div>
-      <div class="rank-progress" id="rankProgress">
-        <div id="progressText">0 / 30 pts vers Bon</div>
-        <div class="bar"><div class="bar-fill" id="barFill"></div></div>
-      </div>
 
-      <div class="goal-box">
-        <div id="goalText">Objectif du jour : 150 pts</div>
-        <div class="bar"><div class="bar-fill" id="goalBarFill"></div></div>
-      </div>
-
-      <div class="legend" id="legend"></div>
-
-      <div class="tip-box" id="tipBox">
-        <div class="tip-label" id="tipLabel">Conseil</div>
-        <div class="tip-text" id="tipText">Chargement…</div>
-      </div>
-    </div>
-
-    <!-- FORM + BREAKDOWN -->
-    <div>
-      <div class="card app-section" id="section-form">
+      <div class="card" style="margin-top: 24px;">
         <div class="card-head">
           <h2>Ajouter une série</h2>
         </div>
@@ -896,7 +894,9 @@
 
         <div class="breakdown" id="breakdown"></div>
       </div>
+    </div>
 
+    <div>
       <div class="card chart-card app-section" id="section-chart">
         <h2>Évolution</h2>
         <div id="chartWrap"><div class="chart-empty">Le graphique apparaîtra ici dès que vous aurez au moins un jour d'historique.</div></div>
