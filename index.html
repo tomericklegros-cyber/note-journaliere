@@ -1225,7 +1225,128 @@
   .timer-add { border: 1px solid #45AD7A; background: rgba(69,173,122,.16); color: #9AE0BD; }
   .timer-add:hover { background: rgba(69,173,122,.28); }
   .timer-help { color: var(--ink-soft); font-size: 12px; line-height: 1.55; margin: 22px auto 0; max-width: 470px; }
+
+  /* ---- AUTH ---- */
+  .auth-box {
+    margin: 18px 6px 8px;
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: var(--stone-dark);
+  }
+  .auth-user {
+    font-size: 12px;
+    color: var(--ink-soft);
+    margin-bottom: 8px;
+    word-break: break-all;
+    line-height: 1.35;
+  }
+  .auth-user strong { color: var(--ink); display: block; font-size: 13px; margin-bottom: 2px; }
+  .auth-btn {
+    width: 100%;
+    padding: 9px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--purple-soft);
+    background: transparent;
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-bottom: 6px;
+  }
+  .auth-btn:hover { background: rgba(155,109,224,0.12); border-color: var(--purple); }
+  .auth-btn.primary {
+    background: var(--purple);
+    color: #0B0A10;
+    border-color: var(--purple);
+  }
+  .auth-btn.primary:hover { background: #B58AEE; }
+  .auth-btn.danger {
+    border-color: #D9455A;
+    color: #D9455A;
+  }
+  .auth-btn.danger:hover { background: rgba(217,69,90,0.12); }
+  .auth-status {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--ink-soft);
+    margin-top: 6px;
+    min-height: 14px;
+  }
+  .auth-status.synced { color: var(--r3); }
+  .auth-status.error { color: var(--r5); }
+
+  .login-form { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+  .login-form input {
+    width: 100%;
+    background: var(--stone-dark);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 11px 12px;
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 14px;
+    outline: none;
+  }
+  .login-form input:focus { border-color: var(--purple); }
+  .password-wrap {
+    position: relative;
+  }
+  .password-wrap input {
+    padding-right: 44px;
+  }
+  .toggle-password {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--ink-soft);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 4px 6px;
+    line-height: 1;
+  }
+  .toggle-password:hover { color: var(--ink); }
+  .login-divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--ink-soft);
+    font-size: 12px;
+    margin: 6px 0;
+  }
+  .login-divider::before, .login-divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--line);
+  }
+  .google-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: #fff;
+    color: #1f1f1f;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .google-btn:hover { background: #f5f5f5; }
+  .google-btn svg { width: 18px; height: 18px; }
 </style>
+
+<!-- Firebase SDK (compat) -->
+<script src="https://www.gstatic.com/firebasejs/11.10.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/11.10.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/11.10.0/firebase-analytics-compat.js"></script>
 </head>
 <body>
 <div class="intro-splash" id="introSplash">
@@ -1315,6 +1436,21 @@
   <button type="button" class="nav-item" data-target="section-badges"><span class="nav-ico">🎖️</span> Badges</button>
   <button type="button" class="nav-item" data-target="section-history"><span class="nav-ico">🗂️</span> Historique</button>
   <button type="button" class="nav-item" id="navSettingsLink"><span class="nav-ico">⚙️</span> Paramètres</button>
+
+  <div class="auth-box" id="authBox">
+    <div id="authLoggedOut">
+      <button type="button" class="auth-btn primary" id="openLoginBtn">Se connecter</button>
+      <div class="auth-status" id="authStatusOut">Données locales uniquement</div>
+    </div>
+    <div id="authLoggedIn" style="display:none;">
+      <div class="auth-user">
+        <strong id="authDisplayName">—</strong>
+        <span id="authEmail">—</span>
+      </div>
+      <button type="button" class="auth-btn danger" id="logoutBtn">Se déconnecter</button>
+      <div class="auth-status" id="authStatusIn">—</div>
+    </div>
+  </div>
 </nav>
 
 <div class="app-body">
@@ -1479,6 +1615,9 @@
         <h2>Évolution</h2>
         <div class="chart-tabs" id="chartTabs"></div>
         <div id="chartWrap"><div class="chart-empty">Le graphique apparaîtra ici dès que vous aurez au moins un jour d'historique.</div></div>
+
+        <div class="modal-section-title" style="margin-top: 26px;">Répartition par exercice — total cumulé</div>
+        <div id="radarWrap" style="display: flex; justify-content: center;"></div>
       </div>
 
       <div class="card records-card app-section" id="section-records">
@@ -1582,6 +1721,43 @@
   </div>
 </div>
 
+<!-- LOGIN MODAL -->
+<div class="modal-overlay" id="loginOverlay">
+  <div class="modal-panel" style="max-width: 400px;">
+    <h2>Connexion</h2>
+    <div class="modal-sub">Connectez-vous pour synchroniser vos données entre vos appareils.</div>
+
+    <button type="button" class="google-btn" id="googleLoginBtn">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+      </svg>
+      Continuer avec Google
+    </button>
+
+    <div class="login-divider">ou</div>
+
+    <div class="login-form">
+      <input type="email" id="loginEmail" placeholder="Email" autocomplete="email">
+      <div class="password-wrap">
+        <input type="password" id="loginPassword" placeholder="Mot de passe" autocomplete="current-password">
+        <button type="button" class="toggle-password" id="togglePasswordBtn" title="Afficher / masquer">👁</button>
+      </div>
+      <button type="button" class="auth-btn primary" id="emailLoginBtn">Se connecter</button>
+      <button type="button" class="auth-btn" id="emailRegisterBtn">Créer un compte</button>
+      <button type="button" class="auth-btn" id="forgotPasswordBtn" style="border:none; text-decoration:underline; color:var(--ink-soft); font-size:12px; margin-top:2px;">Mot de passe oublié ?</button>
+    </div>
+
+    <div class="flash" id="loginFlash" style="margin-top:14px; min-height:18px;"></div>
+
+    <div class="modal-actions" style="margin-top:16px;">
+      <button class="cancel-btn" id="closeLoginBtn">Fermer</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="difficultyOverlay">
   <div class="modal-panel" style="max-width: 420px;">
     <h2>Comment était l'exercice ?</h2>
@@ -1629,6 +1805,258 @@
 
 <script>
   const STORAGE_KEY = "note_journaliere_v1";
+
+  /* ========== FIREBASE ========== */
+  const firebaseConfig = {
+    apiKey: "AIzaSyDvnZZw8HW0LSuC2mlWecf6aVGiKzk6o6Y",
+    authDomain: "note-journaliere.firebaseapp.com",
+    projectId: "note-journaliere",
+    storageBucket: "note-journaliere.firebasestorage.app",
+    messagingSenderId: "412765917805",
+    appId: "1:412765917805:web:8dc8ba387195ed05026564",
+    measurementId: "G-QVPHXN13MS"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db = firebase.firestore();
+  let analytics = null;
+  try { analytics = firebase.analytics(); } catch (e) {}
+
+  let currentUser = null;
+  let syncing = false;
+  let lastCloudSave = 0;
+
+  function logEvent(name, params) {
+    try { if (analytics) analytics.logEvent(name, params || {}); } catch (e) {}
+  }
+
+  function setAuthStatus(text, type) {
+    const out = document.getElementById('authStatusOut');
+    const inn = document.getElementById('authStatusIn');
+    [out, inn].forEach(el => {
+      if (!el) return;
+      el.textContent = text;
+      el.classList.remove('synced', 'error');
+      if (type === 'synced') el.classList.add('synced');
+      if (type === 'error') el.classList.add('error');
+    });
+  }
+
+  function updateAuthUI(user) {
+    const loggedOut = document.getElementById('authLoggedOut');
+    const loggedIn = document.getElementById('authLoggedIn');
+    if (!loggedOut || !loggedIn) return;
+    if (user) {
+      loggedOut.style.display = 'none';
+      loggedIn.style.display = 'block';
+      document.getElementById('authDisplayName').textContent = user.displayName || user.email?.split('@')[0] || 'Utilisateur';
+      document.getElementById('authEmail').textContent = user.email || user.uid;
+      setAuthStatus('Connecté — synchronisation active', 'synced');
+    } else {
+      loggedOut.style.display = 'block';
+      loggedIn.style.display = 'none';
+      setAuthStatus('Données locales uniquement', null);
+    }
+  }
+
+  async function saveToCloud() {
+    if (!currentUser || syncing) return;
+    syncing = true;
+    try {
+      const payload = {
+        ...state,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        clientUpdatedAt: Date.now()
+      };
+      await db.collection('users').doc(currentUser.uid).set(payload, { merge: true });
+      lastCloudSave = Date.now();
+      setAuthStatus('Synchronisé ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }), 'synced');
+    } catch (err) {
+      console.error('Cloud save error', err);
+      setAuthStatus('Erreur de sync', 'error');
+    } finally {
+      syncing = false;
+    }
+  }
+
+  async function loadFromCloud(user) {
+    try {
+      setAuthStatus('Chargement du cloud…', null);
+      const snap = await db.collection('users').doc(user.uid).get();
+      if (snap.exists) {
+        const cloud = snap.data();
+        // Prefer cloud data when it exists
+        const base = defaultState();
+        state = {
+          userName: typeof cloud.userName === 'string' ? cloud.userName : base.userName,
+          dayKey: cloud.dayKey || base.dayKey,
+          exercises: Array.isArray(cloud.exercises) && cloud.exercises.length ? cloud.exercises : base.exercises,
+          history: Array.isArray(cloud.history) ? cloud.history : [],
+          records: cloud.records && typeof cloud.records === 'object' ? cloud.records : { bestScore: null, perExercise: {} },
+          dailyGoal: typeof cloud.dailyGoal === 'number' ? cloud.dailyGoal : base.dailyGoal,
+          seenBadges: Array.isArray(cloud.seenBadges) ? cloud.seenBadges : [],
+          secretBadgeUnlocked: typeof cloud.secretBadgeUnlocked === 'boolean' ? cloud.secretBadgeUnlocked : false,
+          hackerCelebratedToday: typeof cloud.hackerCelebratedToday === 'boolean' ? cloud.hackerCelebratedToday : false,
+          difficultyBonus: typeof cloud.difficultyBonus === 'number' ? cloud.difficultyBonus : 0
+        };
+        if (!state.exercises.some(ex => ex.id === 'gainage')) {
+          state.exercises = [...state.exercises, { id: "gainage", name: "Gainage", points: 5, unit: "minute", decimal: true, value: 0 }];
+        }
+        finalizeDayIfNeeded();
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+        setAuthStatus('Données cloud chargées', 'synced');
+        logEvent('cloud_load');
+        return true;
+      } else {
+        // First time on cloud → upload local data
+        await saveToCloud();
+        setAuthStatus('Première sync réussie', 'synced');
+        logEvent('cloud_first_upload');
+        return false;
+      }
+    } catch (err) {
+      console.error('Cloud load error', err);
+      setAuthStatus('Erreur de chargement cloud', 'error');
+      return false;
+    }
+  }
+
+  auth.onAuthStateChanged(async (user) => {
+    currentUser = user;
+    updateAuthUI(user);
+    if (user) {
+      logEvent('login', { method: user.providerData?.[0]?.providerId || 'unknown' });
+      const loaded = await loadFromCloud(user);
+      if (loaded) {
+        // Rebuild UI after loading cloud data
+        buildTubeBands();
+        buildForm();
+        buildTimerExerciseSelect();
+        buildChartTabs();
+        buildLegend();
+        render();
+      }
+    } else {
+      logEvent('logout');
+    }
+  });
+
+  function openLoginModal() {
+    document.getElementById('loginFlash').textContent = '';
+    document.getElementById('loginOverlay').classList.add('open');
+  }
+  function closeLoginModal() {
+    document.getElementById('loginOverlay').classList.remove('open');
+  }
+
+  document.getElementById('openLoginBtn').addEventListener('click', openLoginModal);
+  document.getElementById('closeLoginBtn').addEventListener('click', closeLoginModal);
+  document.getElementById('loginOverlay').addEventListener('click', (e) => {
+    if (e.target.id === 'loginOverlay') closeLoginModal();
+  });
+
+  document.getElementById('togglePasswordBtn').addEventListener('click', () => {
+    const input = document.getElementById('loginPassword');
+    const btn = document.getElementById('togglePasswordBtn');
+    if (input.type === 'password') {
+      input.type = 'text';
+      btn.textContent = '🙈';
+    } else {
+      input.type = 'password';
+      btn.textContent = '👁';
+    }
+  });
+
+  document.getElementById('googleLoginBtn').addEventListener('click', async () => {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    try {
+      document.getElementById('loginFlash').textContent = 'Connexion Google…';
+      await auth.signInWithPopup(provider);
+      closeLoginModal();
+    } catch (err) {
+      console.error(err);
+      document.getElementById('loginFlash').textContent = err.message || 'Erreur Google';
+    }
+  });
+
+  document.getElementById('emailLoginBtn').addEventListener('click', async () => {
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    if (!email || !password) {
+      document.getElementById('loginFlash').textContent = 'Email et mot de passe requis.';
+      return;
+    }
+    try {
+      document.getElementById('loginFlash').textContent = 'Connexion…';
+      await auth.signInWithEmailAndPassword(email, password);
+      closeLoginModal();
+    } catch (err) {
+      const code = err.code || '';
+      let msg = 'Erreur de connexion.';
+      if (code === 'auth/user-not-found') msg = 'Compte introuvable. Clique sur « Créer un compte ».';
+      else if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') msg = 'Mot de passe incorrect.';
+      else if (code === 'auth/invalid-email') msg = 'Adresse email invalide.';
+      else if (code === 'auth/too-many-requests') msg = 'Trop de tentatives. Réessaie plus tard.';
+      document.getElementById('loginFlash').textContent = msg;
+    }
+  });
+
+  document.getElementById('emailRegisterBtn').addEventListener('click', async () => {
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    if (!email || !password) {
+      document.getElementById('loginFlash').textContent = 'Email et mot de passe requis.';
+      return;
+    }
+    if (password.length < 6) {
+      document.getElementById('loginFlash').textContent = 'Mot de passe : 6 caractères minimum.';
+      return;
+    }
+    try {
+      document.getElementById('loginFlash').textContent = 'Création du compte…';
+      await auth.createUserWithEmailAndPassword(email, password);
+      closeLoginModal();
+    } catch (err) {
+      const code = err.code || '';
+      let msg = 'Erreur création compte.';
+      if (code === 'auth/email-already-in-use') msg = 'Cet email est déjà utilisé. Clique sur « Se connecter ».';
+      else if (code === 'auth/invalid-email') msg = 'Adresse email invalide.';
+      else if (code === 'auth/weak-password') msg = 'Mot de passe trop faible (6 caractères min).';
+      document.getElementById('loginFlash').textContent = msg;
+    }
+  });
+
+  document.getElementById('forgotPasswordBtn').addEventListener('click', async () => {
+    const email = document.getElementById('loginEmail').value.trim();
+    if (!email) {
+      document.getElementById('loginFlash').textContent = 'Entre ton email d’abord, puis clique sur « Mot de passe oublié ».';
+      return;
+    }
+    try {
+      document.getElementById('loginFlash').textContent = 'Envoi de l’email…';
+      await auth.sendPasswordResetEmail(email);
+      document.getElementById('loginFlash').textContent = 'Email envoyé ! Vérifie ta boîte mail (et les spams).';
+    } catch (err) {
+      const code = err.code || '';
+      let msg = 'Impossible d’envoyer l’email.';
+      if (code === 'auth/user-not-found') msg = 'Aucun compte avec cet email.';
+      else if (code === 'auth/invalid-email') msg = 'Adresse email invalide.';
+      else if (code === 'auth/too-many-requests') msg = 'Trop de demandes. Réessaie plus tard.';
+      document.getElementById('loginFlash').textContent = msg;
+    }
+  });
+
+  document.getElementById('logoutBtn').addEventListener('click', async () => {
+    try {
+      await auth.signOut();
+      setAuthStatus('Déconnecté — données locales', null);
+    } catch (err) {
+      setAuthStatus('Erreur déconnexion', 'error');
+    }
+  });
+
+  /* ========== END FIREBASE ========== */
 
   const RANKS = [
     { name: "Débutant",           min: 0,    color: "var(--r1)", ink: "var(--r1-ink)" },
@@ -1717,6 +2145,11 @@
 
   function saveState() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+    // Sync to cloud (debounced a little)
+    if (currentUser) {
+      clearTimeout(window._cloudSaveTimer);
+      window._cloudSaveTimer = setTimeout(() => saveToCloud(), 800);
+    }
   }
 
   function computeScore(s) {
@@ -2088,6 +2521,76 @@
     </svg>`;
   }
 
+  function computeAllTimePointsByExercise() {
+    const totalUnits = {};
+    state.exercises.forEach(ex => { totalUnits[ex.id] = ex.value; });
+    state.history.forEach(h => {
+      if (!h.byExercise) return;
+      Object.keys(totalUnits).forEach(id => {
+        const rec = h.byExercise[id];
+        if (rec) totalUnits[id] += rec.value;
+      });
+    });
+    return state.exercises.map(ex => ({
+      name: ex.name,
+      points: Math.round(totalUnits[ex.id] * ex.points)
+    }));
+  }
+
+  function buildRadarChart() {
+    const wrap = document.getElementById('radarWrap');
+    const data = computeAllTimePointsByExercise();
+
+    if (data.length < 3) {
+      wrap.innerHTML = '<div class="chart-empty">Ajoutez au moins 3 exercices pour voir la vue en étoile.</div>';
+      return;
+    }
+
+    const n = data.length;
+    const w = 340, h = 360;
+    const cx = w / 2, cy = 165;
+    const R = 95;
+    const maxVal = Math.max(...data.map(d => d.points), 10) * 1.15;
+
+    function pointFor(i, ratio) {
+      const angle = -Math.PI / 2 + i * (2 * Math.PI / n);
+      const r = R * ratio;
+      return [cx + r * Math.cos(angle), cy + r * Math.sin(angle)];
+    }
+
+    let gridPolys = '';
+    [0.25, 0.5, 0.75, 1].forEach(frac => {
+      const pts = data.map((_, i) => pointFor(i, frac).join(',')).join(' ');
+      gridPolys += `<polygon points="${pts}" fill="none" stroke="#322B44" stroke-width="1" opacity="0.6"/>`;
+    });
+
+    const axisLines = data.map((_, i) => {
+      const [x, y] = pointFor(i, 1);
+      return `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#322B44" stroke-width="1" opacity="0.6"/>`;
+    }).join('');
+
+    const dataPts = data.map((d, i) => pointFor(i, Math.min(1, d.points / maxVal)).map(v => v.toFixed(1)).join(',')).join(' ');
+    const dataPoly = `<polygon points="${dataPts}" fill="rgba(155,109,224,0.28)" stroke="#9B6DE0" stroke-width="2.5"/>`;
+    const dataCircles = data.map((d, i) => {
+      const [x, y] = pointFor(i, Math.min(1, d.points / maxVal));
+      return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4" fill="#EFC24C" />`;
+    }).join('');
+
+    const labels = data.map((d, i) => {
+      const [x, y] = pointFor(i, 1.3);
+      return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" font-size="10" fill="#9A93AD" text-anchor="middle" font-family="IBM Plex Mono, monospace">${escapeHtml(d.name)}</text>
+              <text x="${x.toFixed(1)}" y="${(y+12).toFixed(1)}" font-size="10" fill="#EFC24C" font-weight="700" text-anchor="middle" font-family="IBM Plex Mono, monospace">${d.points} pts</text>`;
+    }).join('');
+
+    wrap.innerHTML = `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" style="max-width: 340px;">
+      ${gridPolys}
+      ${axisLines}
+      ${dataPoly}
+      ${dataCircles}
+      ${labels}
+    </svg>`;
+  }
+
   function render() {
     const score = computeScore(state);
     const { current, next } = getRank(score);
@@ -2157,6 +2660,7 @@
     buildRecords();
     buildBadges();
     buildChart();
+    buildRadarChart();
 
     document.getElementById('dateBadge').textContent = new Date().toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: 'short' });
 
@@ -2438,6 +2942,7 @@
       state.hackerCelebratedToday = true;
       saveState();
       celebrateHackerRank();
+      logEvent('rank_hacker');
     }
   }
 
@@ -2516,11 +3021,13 @@
 
     if (gotNewBest && prevBest > 0) {
       celebrateRecord();
+      logEvent('new_record');
     } else if (bonus > 0) {
       flash(`Ajouté au score du jour (+${bonus} pts bonus ${difficulty.name.toLowerCase()}).`);
     } else {
       flash("Ajouté au score du jour.");
     }
+    logEvent('score_added', { points: Math.round(basePoints + bonus), difficulty: difficulty ? difficulty.level : 'none' });
   }
 
   document.getElementById('addBtn').addEventListener('click', () => {
