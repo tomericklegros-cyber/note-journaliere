@@ -437,6 +437,23 @@
   </div>
 </div>
 
+<!-- PSEUDO SETUP (obligatoire après connexion) -->
+<div class="modal-overlay" id="pseudoOverlay">
+  <div class="modal-panel" style="max-width: 400px;">
+    <h2>Choisis ton pseudo</h2>
+    <div class="modal-sub">C’est ton nom public pour les amis, défis et messages. Tu pourras le changer plus tard dans les paramètres.</div>
+    <div class="settings-field">
+      <label>Pseudo</label>
+      <input type="text" id="pseudoInput" placeholder="ex: tom_sport" maxlength="20" autocomplete="username">
+      <div id="pseudoHint" style="font-size:11px;color:var(--ink-soft);margin-top:4px;">3 à 20 caractères : lettres, chiffres, underscore (_)</div>
+    </div>
+    <div class="flash" id="pseudoFlash" style="margin-top:10px;min-height:18px;"></div>
+    <div class="modal-actions" style="margin-top:16px;">
+      <button class="save-btn" id="pseudoSaveBtn" style="flex:1;">Valider mon pseudo</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal-panel">
     <h2>Paramètres</h2>
@@ -445,6 +462,11 @@
     <div class="settings-field">
       <label>Votre prénom</label>
       <input type="text" id="settingsName" placeholder="Votre prénom">
+    </div>
+    <div class="settings-field">
+      <label>Pseudo public <span style="color:var(--ink-soft);font-weight:400">(unique, visible par tes amis)</span></label>
+      <input type="text" id="settingsPseudo" placeholder="ex: tom_sport" maxlength="20" autocomplete="username">
+      <div id="settingsPseudoHint" style="font-size:11px;color:var(--ink-soft);margin-top:4px;">3 à 20 caractères : lettres, chiffres, _</div>
     </div>
     <div class="settings-field">
       <label>Objectif quotidien (points)</label>

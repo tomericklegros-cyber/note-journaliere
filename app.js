@@ -44,14 +44,114 @@
     if (user) {
       loggedOut.style.display = 'none';
       loggedIn.style.display = 'block';
-      document.getElementById('authDisplayName').textContent = user.displayName || user.email?.split('@')[0] || 'Utilisateur';
-      document.getElementById('authEmail').textContent = user.email || user.uid;
+      const display = (state && state.pseudo) ? state.pseudo
+        : (user.displayName || user.email?.split('@')[0] || 'Utilisateur');
+      document.getElementById('authDisplayName').textContent = display;
+      document.getElementById('authEmail').textContent = state && state.pseudo
+        ? ('@' + state.pseudo + (user.email ? ' · ' + user.email : ''))
+        : (user.email || user.uid);
       setAuthStatus('Connecté — synchronisation active', 'synced');
     } else {
       loggedOut.style.display = 'block';
       loggedIn.style.display = 'none';
       setAuthStatus('Données locales uniquement', null);
     }
+  }
+
+  function normalizePseudo(raw) {
+    return String(raw || '').trim().toLowerCase().replace(/\s+/g, '_');
+  }
+
+  function validatePseudo(pseudo) {
+    if (!pseudo || pseudo.length < 3) return 'Le pseudo doit faire au moins 3 caractères.';
+    if (pseudo.length > 20) return 'Le pseudo ne peut pas dépasser 20 caractères.';
+    if (!/^[a-z0-9_]+$/.test(pseudo)) return 'Lettres, chiffres et underscore (_) uniquement.';
+    if (/^[0-9]+$/.test(pseudo)) return 'Le pseudo ne peut pas être uniquement des chiffres.';
+    return null;
+  }
+
+  function openPseudoModal(force) {
+    const el = document.getElementById('pseudoOverlay');
+    if (!el) return;
+    document.getElementById('pseudoFlash').textContent = '';
+    document.getElementById('pseudoInput').value = state.pseudo || '';
+    el.classList.add('open');
+    if (force) {
+      // Empêche de fermer en cliquant à l'extérieur tant que pas de pseudo
+      el.dataset.force = '1';
+    } else {
+      delete el.dataset.force;
+    }
+    setTimeout(() => document.getElementById('pseudoInput').focus(), 100);
+  }
+
+  function closePseudoModal() {
+    const el = document.getElementById('pseudoOverlay');
+    if (!el) return;
+    if (el.dataset.force === '1' && !state.pseudo) return; // bloqué si obligatoire
+    el.classList.remove('open');
+  }
+
+  async function claimPseudo(newPseudo) {
+    if (!currentUser) throw new Error('Non connecté');
+    const pseudo = normalizePseudo(newPseudo);
+    const err = validatePseudo(pseudo);
+    if (err) throw new Error(err);
+
+    const unameRef = db.collection('usernames').doc(pseudo);
+    const userRef = db.collection('users').doc(currentUser.uid);
+
+    await db.runTransaction(async (tx) => {
+      const unameSnap = await tx.get(unameRef);
+      if (unameSnap.exists) {
+        const owner = unameSnap.data().uid;
+        if (owner !== currentUser.uid) {
+          throw new Error('Ce pseudo est déjà pris.');
+        }
+      }
+      // Libérer l'ancien pseudo si changement
+      if (state.pseudo && state.pseudo !== pseudo) {
+        const oldRef = db.collection('usernames').doc(state.pseudo);
+        const oldSnap = await tx.get(oldRef);
+        if (oldSnap.exists && oldSnap.data().uid === currentUser.uid) {
+          tx.delete(oldRef);
+        }
+      }
+      tx.set(unameRef, {
+        uid: currentUser.uid,
+        pseudo: pseudo,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      tx.set(userRef, {
+        pseudo: pseudo,
+        pseudoUpdatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+    });
+
+    state.pseudo = pseudo;
+    saveState();
+    updateAuthUI(currentUser);
+    logEvent('pseudo_set', { pseudo });
+    return pseudo;
+  }
+
+  async function ensurePseudo() {
+    if (!currentUser) return;
+    if (state.pseudo && state.pseudo.length >= 3) {
+      updateAuthUI(currentUser);
+      return;
+    }
+    // Recharger depuis le cloud au cas où
+    try {
+      const snap = await db.collection('users').doc(currentUser.uid).get();
+      if (snap.exists && snap.data().pseudo) {
+        state.pseudo = snap.data().pseudo;
+        saveState();
+        updateAuthUI(currentUser);
+        return;
+      }
+    } catch (e) {}
+    openPseudoModal(true);
   }
 
   async function saveToCloud() {
@@ -84,6 +184,7 @@
         const base = defaultState();
         state = {
           userName: typeof cloud.userName === 'string' ? cloud.userName : base.userName,
+          pseudo: typeof cloud.pseudo === 'string' ? cloud.pseudo : base.pseudo,
           dayKey: cloud.dayKey || base.dayKey,
           exercises: Array.isArray(cloud.exercises) && cloud.exercises.length ? cloud.exercises : base.exercises,
           history: Array.isArray(cloud.history) ? cloud.history : [],
@@ -131,8 +232,10 @@
         buildLegend();
         render();
       }
+      await ensurePseudo();
     } else {
       logEvent('logout');
+      closePseudoModal();
     }
   });
 
@@ -148,6 +251,27 @@
   document.getElementById('closeLoginBtn').addEventListener('click', closeLoginModal);
   document.getElementById('loginOverlay').addEventListener('click', (e) => {
     if (e.target.id === 'loginOverlay') closeLoginModal();
+  });
+
+  document.getElementById('pseudoSaveBtn').addEventListener('click', async () => {
+    const raw = document.getElementById('pseudoInput').value;
+    const flashEl = document.getElementById('pseudoFlash');
+    flashEl.textContent = 'Vérification…';
+    try {
+      await claimPseudo(raw);
+      const el = document.getElementById('pseudoOverlay');
+      delete el.dataset.force;
+      closePseudoModal();
+      flash('Pseudo enregistré : @' + state.pseudo);
+    } catch (err) {
+      flashEl.textContent = err.message || 'Erreur';
+    }
+  });
+  document.getElementById('pseudoOverlay').addEventListener('click', (e) => {
+    if (e.target.id === 'pseudoOverlay') closePseudoModal();
+  });
+  document.getElementById('pseudoInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('pseudoSaveBtn').click();
   });
 
   document.getElementById('googleLoginBtn').addEventListener('click', async () => {
@@ -234,6 +358,7 @@
   function defaultState() {
     return {
       userName: "",
+      pseudo: "",
       dayKey: todayKey(),
       exercises: defaultExercises(),
       history: [],
@@ -281,6 +406,7 @@
 
       return {
         userName: typeof parsed.userName === 'string' ? parsed.userName : base.userName,
+        pseudo: typeof parsed.pseudo === 'string' ? parsed.pseudo : base.pseudo,
         dayKey: parsed.dayKey || base.dayKey,
         exercises: exercises,
         history: Array.isArray(parsed.history) ? parsed.history : [],
@@ -1382,6 +1508,7 @@
       const base = defaultState();
       state = {
         userName: typeof incoming.userName === 'string' ? incoming.userName : base.userName,
+        pseudo: typeof incoming.pseudo === 'string' ? incoming.pseudo : base.pseudo,
         dayKey: incoming.dayKey || base.dayKey,
         exercises: Array.isArray(incoming.exercises) && incoming.exercises.length ? incoming.exercises : base.exercises,
         history: Array.isArray(incoming.history) ? incoming.history : [],
@@ -1412,6 +1539,14 @@
 
   function openEditModal() {
     document.getElementById('settingsName').value = state.userName || "";
+    const pseudoInput = document.getElementById('settingsPseudo');
+    if (pseudoInput) {
+      pseudoInput.value = state.pseudo || "";
+      pseudoInput.disabled = !currentUser;
+      document.getElementById('settingsPseudoHint').textContent = currentUser
+        ? '3 à 20 caractères : lettres, chiffres, _ — unique'
+        : 'Connecte-toi pour définir un pseudo public';
+    }
     document.getElementById('settingsGoal').value = state.dailyGoal;
     editBuffer = state.exercises.map(ex => ({ ...ex }));
     renderEditList();
@@ -1469,7 +1604,7 @@
     if (e.target.id === 'modalOverlay') closeEditModal();
   });
 
-  document.getElementById('saveEditBtn').addEventListener('click', () => {
+  document.getElementById('saveEditBtn').addEventListener('click', async () => {
     const cleaned = editBuffer
       .filter(ex => ex.name.trim() !== '')
       .map(ex => ({
@@ -1488,6 +1623,20 @@
     state.userName = document.getElementById('settingsName').value.trim();
     state.dailyGoal = parseFloat(document.getElementById('settingsGoal').value) || 0;
     state.exercises = cleaned;
+
+    // Pseudo (uniquement si connecté)
+    const pseudoField = document.getElementById('settingsPseudo');
+    if (currentUser && pseudoField) {
+      const wanted = normalizePseudo(pseudoField.value);
+      if (wanted && wanted !== state.pseudo) {
+        try {
+          await claimPseudo(wanted);
+        } catch (err) {
+          exportFlash(err.message || 'Pseudo indisponible');
+          return;
+        }
+      }
+    }
 
     buildTubeBands();
     buildForm();
