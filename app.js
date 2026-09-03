@@ -2152,12 +2152,158 @@
     if (e.key === 'Enter') sendFriendRequest();
   });
 
+  /* ---- MESSAGERIE ---- */
+  let messagesUnsub = null;
+  let activeChatId = null;
+  let activeChatFriend = null; // { uid, pseudo }
+
+  function chatIdFor(uidA, uidB) {
+    return [uidA, uidB].sort().join('_');
+  }
+
+  function showChatList() {
+    document.getElementById('chatListView').style.display = 'block';
+    document.getElementById('chatThreadView').style.display = 'none';
+    if (messagesUnsub) { messagesUnsub(); messagesUnsub = null; }
+    activeChatId = null;
+    activeChatFriend = null;
+    renderChatFriendsList();
+  }
+
+  function showChatThread(friend) {
+    activeChatFriend = friend;
+    activeChatId = chatIdFor(currentUser.uid, friend.uid);
+    document.getElementById('chatListView').style.display = 'none';
+    const thread = document.getElementById('chatThreadView');
+    thread.style.display = 'flex';
+    document.getElementById('chatThreadTitle').textContent = '@' + friend.pseudo;
+    document.getElementById('chatMessages').innerHTML = '<div class="social-empty">Chargement…</div>';
+    document.getElementById('chatInput').value = '';
+    listenMessages(activeChatId);
+  }
+
+  async function renderChatFriendsList() {
+    const list = document.getElementById('messagesList');
+    if (!currentUser) {
+      list.innerHTML = '<div class="social-empty">Connecte-toi pour discuter</div>';
+      return;
+    }
+    try {
+      const snap = await db.collection('users').doc(currentUser.uid).collection('friends').get();
+      if (snap.empty) {
+        list.innerHTML = '<div class="social-empty">Ajoute des amis pour discuter</div>';
+        return;
+      }
+      list.innerHTML = '';
+      snap.forEach(doc => {
+        const f = doc.data();
+        const card = document.createElement('div');
+        card.className = 'friend-card chatable';
+        card.innerHTML = `
+          <div>
+            <div class="fname">@${escapeHtml(f.pseudo || doc.id)}</div>
+            <div class="fmeta">Appuyer pour discuter</div>
+          </div>
+          <div class="friend-actions">
+            <button type="button" class="primary">Message</button>
+          </div>`;
+        const open = () => showChatThread({ uid: doc.id, pseudo: f.pseudo || doc.id });
+        card.addEventListener('click', open);
+        list.appendChild(card);
+      });
+    } catch (e) {
+      console.error(e);
+      list.innerHTML = '<div class="social-empty">Erreur de chargement</div>';
+    }
+  }
+
+  function listenMessages(chatId) {
+    if (messagesUnsub) { messagesUnsub(); messagesUnsub = null; }
+    const box = document.getElementById('chatMessages');
+    messagesUnsub = db.collection('conversations').doc(chatId).collection('messages')
+      .orderBy('createdAt', 'asc')
+      .limitToLast(100)
+      .onSnapshot(snap => {
+        if (snap.empty) {
+          box.innerHTML = '<div class="social-empty">Aucun message — dis bonjour 👋</div>';
+          return;
+        }
+        box.innerHTML = '';
+        snap.forEach(doc => {
+          const m = doc.data();
+          const mine = m.from === currentUser.uid;
+          const div = document.createElement('div');
+          div.className = 'chat-bubble ' + (mine ? 'me' : 'them');
+          let time = '';
+          if (m.createdAt && m.createdAt.toDate) {
+            time = m.createdAt.toDate().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+          }
+          div.innerHTML = `${escapeHtml(m.text || '')}<span class="ctime">${time}</span>`;
+          box.appendChild(div);
+        });
+        box.scrollTop = box.scrollHeight;
+      }, err => {
+        console.error(err);
+        box.innerHTML = '<div class="social-empty">Erreur messages (règles Firestore ?)</div>';
+      });
+  }
+
+  async function sendChatMessage() {
+    if (!currentUser || !activeChatId || !activeChatFriend) return;
+    const input = document.getElementById('chatInput');
+    const text = (input.value || '').trim();
+    if (!text) return;
+    input.value = '';
+    try {
+      const convRef = db.collection('conversations').doc(activeChatId);
+      const msgRef = convRef.collection('messages').doc();
+      const batch = db.batch();
+      batch.set(convRef, {
+        participants: [currentUser.uid, activeChatFriend.uid].sort(),
+        pseudos: {
+          [currentUser.uid]: state.pseudo || '',
+          [activeChatFriend.uid]: activeChatFriend.pseudo || ''
+        },
+        lastMessage: text.slice(0, 120),
+        lastFrom: currentUser.uid,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+      batch.set(msgRef, {
+        from: currentUser.uid,
+        text: text.slice(0, 500),
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      await batch.commit();
+      logEvent('message_sent');
+    } catch (e) {
+      console.error(e);
+      socialFlash('Impossible d’envoyer le message', 'err');
+    }
+  }
+
+  document.getElementById('chatBackBtn').addEventListener('click', showChatList);
+  document.getElementById('chatSendBtn').addEventListener('click', sendChatMessage);
+  document.getElementById('chatInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') sendChatMessage();
+  });
+
+  // Quand on ouvre l'onglet Messages
+  document.querySelectorAll('.social-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      if (tab.dataset.social === 'messages') {
+        showChatList();
+      }
+    });
+  });
+
   auth.onAuthStateChanged((user) => {
     refreshSocialLoginGate();
     if (!user) {
       stopSocialListeners();
+      if (messagesUnsub) { messagesUnsub(); messagesUnsub = null; }
       const badge = document.getElementById('socialBadge');
       if (badge) badge.classList.remove('show');
+      showChatList();
     }
   });
 

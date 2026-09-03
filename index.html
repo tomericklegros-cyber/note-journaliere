@@ -153,8 +153,21 @@
 
     <!-- MESSAGES -->
     <div class="social-section" id="social-messages">
-      <div class="social-hint">Messagerie entre amis. (Prochaine étape : chat en direct.)</div>
-      <div id="messagesList"><div class="social-empty">Aucune conversation</div></div>
+      <div id="chatListView">
+        <div class="social-hint">Choisis un ami pour discuter.</div>
+        <div id="messagesList"><div class="social-empty">Aucun ami pour le moment</div></div>
+      </div>
+      <div id="chatThreadView" style="display:none; flex-direction:column; height:100%; min-height:360px;">
+        <div class="chat-thread-head">
+          <button type="button" class="chat-back" id="chatBackBtn">←</button>
+          <div class="chat-thread-title" id="chatThreadTitle">@ami</div>
+        </div>
+        <div class="chat-messages" id="chatMessages"></div>
+        <div class="chat-compose">
+          <input type="text" id="chatInput" placeholder="Écrire un message…" maxlength="500" autocomplete="off">
+          <button type="button" id="chatSendBtn">Envoyer</button>
+        </div>
+      </div>
     </div>
   </div>
 </aside>
