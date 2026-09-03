@@ -1872,4 +1872,294 @@
     location.reload();
   });
 
+  /* ---- SOCIAL PANEL + AMIS ---- */
+  let friendsUnsub = null;
+  let requestsUnsub = null;
+  let outgoingUnsub = null;
+
+  function socialFlash(msg, type) {
+    const el = document.getElementById('socialFlash');
+    if (!el) return;
+    el.textContent = msg || '';
+    el.classList.remove('ok', 'err');
+    if (type === 'ok') el.classList.add('ok');
+    if (type === 'err') el.classList.add('err');
+  }
+
+  function openSocialPanel() {
+    document.getElementById('socialPanel').classList.add('open');
+    document.getElementById('socialScrim').classList.add('open');
+    refreshSocialLoginGate();
+    if (currentUser) loadSocialData();
+  }
+  function closeSocialPanel() {
+    document.getElementById('socialPanel').classList.remove('open');
+    document.getElementById('socialScrim').classList.remove('open');
+  }
+
+  function refreshSocialLoginGate() {
+    const need = document.getElementById('socialNeedLogin');
+    const content = document.getElementById('socialAmisContent');
+    if (!need || !content) return;
+    if (currentUser && state.pseudo) {
+      need.style.display = 'none';
+      content.style.display = 'block';
+    } else if (currentUser && !state.pseudo) {
+      need.style.display = 'block';
+      need.innerHTML = 'Choisis d’abord un <strong>pseudo</strong> pour utiliser le social.<br><button type="button" id="socialPseudoBtn">Choisir mon pseudo</button>';
+      content.style.display = 'none';
+      const btn = document.getElementById('socialPseudoBtn');
+      if (btn) btn.onclick = () => { closeSocialPanel(); openPseudoModal(true); };
+    } else {
+      need.style.display = 'block';
+      need.innerHTML = 'Connecte-toi pour ajouter des amis, lancer des défis et discuter.<br><button type="button" id="socialLoginBtn2">Se connecter</button>';
+      content.style.display = 'none';
+      const btn = document.getElementById('socialLoginBtn2');
+      if (btn) btn.onclick = () => { closeSocialPanel(); openLoginModal(); };
+    }
+  }
+
+  document.getElementById('socialToggle').addEventListener('click', openSocialPanel);
+  document.getElementById('socialClose').addEventListener('click', closeSocialPanel);
+  document.getElementById('socialScrim').addEventListener('click', closeSocialPanel);
+
+  document.querySelectorAll('.social-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.social-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.social-section').forEach(s => s.classList.remove('active'));
+      tab.classList.add('active');
+      const sec = document.getElementById('social-' + tab.dataset.social);
+      if (sec) sec.classList.add('active');
+    });
+  });
+
+  function stopSocialListeners() {
+    if (friendsUnsub) { friendsUnsub(); friendsUnsub = null; }
+    if (requestsUnsub) { requestsUnsub(); requestsUnsub = null; }
+    if (outgoingUnsub) { outgoingUnsub(); outgoingUnsub = null; }
+  }
+
+  function loadSocialData() {
+    if (!currentUser) return;
+    stopSocialListeners();
+    const uid = currentUser.uid;
+
+    friendsUnsub = db.collection('users').doc(uid).collection('friends')
+      .onSnapshot(snap => {
+        const list = document.getElementById('friendsList');
+        if (!list) return;
+        if (snap.empty) {
+          list.innerHTML = '<div class="social-empty">Pas encore d’amis</div>';
+          return;
+        }
+        list.innerHTML = '';
+        snap.forEach(doc => {
+          const f = doc.data();
+          const card = document.createElement('div');
+          card.className = 'friend-card';
+          card.innerHTML = `
+            <div>
+              <div class="fname">@${escapeHtml(f.pseudo || doc.id)}</div>
+              <div class="fmeta">Ami</div>
+            </div>
+            <div class="friend-actions">
+              <button type="button" class="danger" data-remove-friend="${doc.id}">Retirer</button>
+            </div>`;
+          list.appendChild(card);
+        });
+        list.querySelectorAll('[data-remove-friend]').forEach(btn => {
+          btn.addEventListener('click', () => removeFriend(btn.dataset.removeFriend));
+        });
+      }, err => console.error(err));
+
+    requestsUnsub = db.collection('users').doc(uid).collection('incomingRequests')
+      .onSnapshot(snap => {
+        const list = document.getElementById('friendRequestsList');
+        const badge = document.getElementById('socialBadge');
+        if (badge) {
+          badge.textContent = String(snap.size);
+          badge.classList.toggle('show', snap.size > 0);
+        }
+        if (!list) return;
+        if (snap.empty) {
+          list.innerHTML = '<div class="social-empty">Aucune demande</div>';
+          return;
+        }
+        list.innerHTML = '';
+        snap.forEach(doc => {
+          const r = doc.data();
+          const card = document.createElement('div');
+          card.className = 'friend-card';
+          card.innerHTML = `
+            <div>
+              <div class="fname">@${escapeHtml(r.pseudo || '?')}</div>
+              <div class="fmeta">Veut être ton ami</div>
+            </div>
+            <div class="friend-actions">
+              <button type="button" class="primary" data-accept="${doc.id}">Accepter</button>
+              <button type="button" class="danger" data-decline="${doc.id}">Refuser</button>
+            </div>`;
+          list.appendChild(card);
+        });
+        list.querySelectorAll('[data-accept]').forEach(btn => {
+          btn.addEventListener('click', () => acceptFriend(btn.dataset.accept));
+        });
+        list.querySelectorAll('[data-decline]').forEach(btn => {
+          btn.addEventListener('click', () => declineFriend(btn.dataset.decline));
+        });
+      }, err => console.error(err));
+
+    outgoingUnsub = db.collection('users').doc(uid).collection('outgoingRequests')
+      .onSnapshot(snap => {
+        const list = document.getElementById('friendOutgoingList');
+        if (!list) return;
+        if (snap.empty) {
+          list.innerHTML = '<div class="social-empty">Aucune</div>';
+          return;
+        }
+        list.innerHTML = '';
+        snap.forEach(doc => {
+          const r = doc.data();
+          const card = document.createElement('div');
+          card.className = 'friend-card';
+          card.innerHTML = `
+            <div>
+              <div class="fname">@${escapeHtml(r.pseudo || '?')}</div>
+              <div class="fmeta">En attente</div>
+            </div>
+            <div class="friend-actions">
+              <button type="button" class="danger" data-cancel="${doc.id}">Annuler</button>
+            </div>`;
+          list.appendChild(card);
+        });
+        list.querySelectorAll('[data-cancel]').forEach(btn => {
+          btn.addEventListener('click', () => cancelOutgoing(btn.dataset.cancel));
+        });
+      }, err => console.error(err));
+  }
+
+  async function sendFriendRequest() {
+    if (!currentUser || !state.pseudo) {
+      socialFlash('Connecte-toi et choisis un pseudo d’abord.', 'err');
+      return;
+    }
+    const targetPseudo = normalizePseudo(document.getElementById('friendSearchInput').value);
+    const err = validatePseudo(targetPseudo);
+    if (err) { socialFlash(err, 'err'); return; }
+    if (targetPseudo === state.pseudo) {
+      socialFlash('Tu ne peux pas t’ajouter toi-même.', 'err');
+      return;
+    }
+    socialFlash('Recherche…');
+    try {
+      const unameSnap = await db.collection('usernames').doc(targetPseudo).get();
+      if (!unameSnap.exists) {
+        socialFlash('Aucun utilisateur avec ce pseudo.', 'err');
+        return;
+      }
+      const targetUid = unameSnap.data().uid;
+      if (targetUid === currentUser.uid) {
+        socialFlash('Tu ne peux pas t’ajouter toi-même.', 'err');
+        return;
+      }
+      const already = await db.collection('users').doc(currentUser.uid).collection('friends').doc(targetUid).get();
+      if (already.exists) {
+        socialFlash('Vous êtes déjà amis.', 'err');
+        return;
+      }
+      const batch = db.batch();
+      batch.set(db.collection('users').doc(currentUser.uid).collection('outgoingRequests').doc(targetUid), {
+        uid: targetUid, pseudo: targetPseudo,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      batch.set(db.collection('users').doc(targetUid).collection('incomingRequests').doc(currentUser.uid), {
+        uid: currentUser.uid, pseudo: state.pseudo,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      await batch.commit();
+      document.getElementById('friendSearchInput').value = '';
+      socialFlash('Demande envoyée à @' + targetPseudo, 'ok');
+      logEvent('friend_request_sent');
+    } catch (e) {
+      console.error(e);
+      socialFlash(e.message || 'Erreur lors de l’envoi', 'err');
+    }
+  }
+
+  async function acceptFriend(fromUid) {
+    if (!currentUser) return;
+    try {
+      const inRef = db.collection('users').doc(currentUser.uid).collection('incomingRequests').doc(fromUid);
+      const inSnap = await inRef.get();
+      if (!inSnap.exists) return;
+      const fromPseudo = inSnap.data().pseudo || '';
+      const batch = db.batch();
+      batch.set(db.collection('users').doc(currentUser.uid).collection('friends').doc(fromUid), {
+        uid: fromUid, pseudo: fromPseudo,
+        since: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      batch.set(db.collection('users').doc(fromUid).collection('friends').doc(currentUser.uid), {
+        uid: currentUser.uid, pseudo: state.pseudo,
+        since: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      batch.delete(inRef);
+      batch.delete(db.collection('users').doc(fromUid).collection('outgoingRequests').doc(currentUser.uid));
+      await batch.commit();
+      socialFlash('Vous êtes maintenant amis avec @' + fromPseudo, 'ok');
+      logEvent('friend_accepted');
+    } catch (e) {
+      console.error(e);
+      socialFlash('Impossible d’accepter', 'err');
+    }
+  }
+
+  async function declineFriend(fromUid) {
+    if (!currentUser) return;
+    try {
+      const batch = db.batch();
+      batch.delete(db.collection('users').doc(currentUser.uid).collection('incomingRequests').doc(fromUid));
+      batch.delete(db.collection('users').doc(fromUid).collection('outgoingRequests').doc(currentUser.uid));
+      await batch.commit();
+      socialFlash('Demande refusée', 'ok');
+    } catch (e) { socialFlash('Erreur', 'err'); }
+  }
+
+  async function cancelOutgoing(toUid) {
+    if (!currentUser) return;
+    try {
+      const batch = db.batch();
+      batch.delete(db.collection('users').doc(currentUser.uid).collection('outgoingRequests').doc(toUid));
+      batch.delete(db.collection('users').doc(toUid).collection('incomingRequests').doc(currentUser.uid));
+      await batch.commit();
+      socialFlash('Demande annulée', 'ok');
+    } catch (e) { socialFlash('Erreur', 'err'); }
+  }
+
+  async function removeFriend(friendUid) {
+    if (!currentUser) return;
+    if (!confirm('Retirer cet ami ?')) return;
+    try {
+      const batch = db.batch();
+      batch.delete(db.collection('users').doc(currentUser.uid).collection('friends').doc(friendUid));
+      batch.delete(db.collection('users').doc(friendUid).collection('friends').doc(currentUser.uid));
+      await batch.commit();
+      socialFlash('Ami retiré', 'ok');
+    } catch (e) { socialFlash('Erreur', 'err'); }
+  }
+
+  document.getElementById('friendAddBtn').addEventListener('click', sendFriendRequest);
+  document.getElementById('friendSearchInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') sendFriendRequest();
+  });
+
+  auth.onAuthStateChanged((user) => {
+    refreshSocialLoginGate();
+    if (!user) {
+      stopSocialListeners();
+      const badge = document.getElementById('socialBadge');
+      if (badge) badge.classList.remove('show');
+    }
+  });
+
   showSection('section-today');
+

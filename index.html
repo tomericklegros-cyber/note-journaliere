@@ -101,6 +101,64 @@
 <button class="nav-toggle" id="navToggle" title="Menu">☰</button>
 <div class="nav-scrim" id="navScrim"></div>
 
+<!-- SOCIAL (haut droite) -->
+<button type="button" class="social-toggle" id="socialToggle" title="Amis, défis, messages">
+  <span class="social-ico">👥</span>
+  <span>Social</span>
+  <span class="social-badge" id="socialBadge">0</span>
+</button>
+<div class="social-scrim" id="socialScrim"></div>
+<aside class="social-panel" id="socialPanel">
+  <div class="social-panel-head">
+    <h2>Social</h2>
+    <button type="button" class="social-close" id="socialClose" title="Fermer">×</button>
+  </div>
+  <div class="social-tabs">
+    <button type="button" class="social-tab active" data-social="amis">Amis</button>
+    <button type="button" class="social-tab" data-social="defis">Défis</button>
+    <button type="button" class="social-tab" data-social="messages">Messages</button>
+  </div>
+  <div class="social-body">
+    <div class="social-flash" id="socialFlash"></div>
+
+    <!-- AMIS -->
+    <div class="social-section active" id="social-amis">
+      <div id="socialNeedLogin" class="social-need-login" style="display:none;">
+        Connecte-toi pour ajouter des amis, lancer des défis et discuter.
+        <br><button type="button" id="socialLoginBtn">Se connecter</button>
+      </div>
+      <div id="socialAmisContent">
+        <div class="social-hint">Ajoute un ami avec son <strong>pseudo</strong> (ex: tom_sport).</div>
+        <div class="social-search">
+          <input type="text" id="friendSearchInput" placeholder="Pseudo de ton ami" maxlength="20" autocomplete="off">
+          <button type="button" id="friendAddBtn">Ajouter</button>
+        </div>
+
+        <div class="modal-section-title" style="margin-top:4px;">Demandes reçues</div>
+        <div id="friendRequestsList"><div class="social-empty">Aucune demande</div></div>
+
+        <div class="modal-section-title">Mes amis</div>
+        <div id="friendsList"><div class="social-empty">Pas encore d’amis</div></div>
+
+        <div class="modal-section-title">Demandes envoyées</div>
+        <div id="friendOutgoingList"><div class="social-empty">Aucune</div></div>
+      </div>
+    </div>
+
+    <!-- DÉFIS -->
+    <div class="social-section" id="social-defis">
+      <div class="social-hint">Défie un ami sur le score du jour. (Prochaine étape : lancer un vrai défi.)</div>
+      <div id="challengesList"><div class="social-empty">Aucun défi en cours</div></div>
+    </div>
+
+    <!-- MESSAGES -->
+    <div class="social-section" id="social-messages">
+      <div class="social-hint">Messagerie entre amis. (Prochaine étape : chat en direct.)</div>
+      <div id="messagesList"><div class="social-empty">Aucune conversation</div></div>
+    </div>
+  </div>
+</aside>
+
 <nav class="side-nav" id="sideNav">
   <div class="side-nav-title">Note journalière</div>
   <button type="button" class="nav-item" data-target="section-today"><span class="nav-ico">📊</span> Aujourd'hui</button>
