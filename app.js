@@ -233,9 +233,12 @@
         render();
       }
       await ensurePseudo();
+      refreshSocialLoginGate();
+      loadSocialData();
     } else {
       logEvent('logout');
       closePseudoModal();
+      stopSocialListeners();
     }
   });
 
@@ -1939,38 +1942,66 @@
     if (outgoingUnsub) { outgoingUnsub(); outgoingUnsub = null; }
   }
 
+  function renderFriendsFromDocs(docs) {
+    const list = document.getElementById('friendsList');
+    if (!list) return;
+    if (!docs.length) {
+      list.innerHTML = '<div class="social-empty">Pas encore d’amis</div>';
+      return;
+    }
+    list.innerHTML = '';
+    docs.forEach(({ id, data }) => {
+      const f = data || {};
+      const card = document.createElement('div');
+      card.className = 'friend-card';
+      card.innerHTML = `
+        <div>
+          <div class="fname">@${escapeHtml(f.pseudo || id)}</div>
+          <div class="fmeta">Ami</div>
+        </div>
+        <div class="friend-actions">
+          <button type="button" class="danger" data-remove-friend="${id}">Retirer</button>
+        </div>`;
+      list.appendChild(card);
+    });
+    list.querySelectorAll('[data-remove-friend]').forEach(btn => {
+      btn.addEventListener('click', () => removeFriend(btn.dataset.removeFriend));
+    });
+  }
+
+  async function refreshFriendsOnce() {
+    if (!currentUser) return;
+    try {
+      const snap = await db.collection('users').doc(currentUser.uid).collection('friends').get();
+      const docs = [];
+      snap.forEach(doc => docs.push({ id: doc.id, data: doc.data() }));
+      renderFriendsFromDocs(docs);
+    } catch (e) {
+      console.error(e);
+      const list = document.getElementById('friendsList');
+      if (list) list.innerHTML = '<div class="social-empty">Erreur chargement amis (règles ?)</div>';
+    }
+  }
+
   function loadSocialData() {
     if (!currentUser) return;
     stopSocialListeners();
     const uid = currentUser.uid;
 
+    // Affiche tout de suite (évite la liste vide alors que des amis existent)
+    refreshFriendsOnce();
+
     friendsUnsub = db.collection('users').doc(uid).collection('friends')
       .onSnapshot(snap => {
+        const docs = [];
+        snap.forEach(doc => docs.push({ id: doc.id, data: doc.data() }));
+        renderFriendsFromDocs(docs);
+      }, err => {
+        console.error(err);
         const list = document.getElementById('friendsList');
-        if (!list) return;
-        if (snap.empty) {
-          list.innerHTML = '<div class="social-empty">Pas encore d’amis</div>';
-          return;
-        }
-        list.innerHTML = '';
-        snap.forEach(doc => {
-          const f = doc.data();
-          const card = document.createElement('div');
-          card.className = 'friend-card';
-          card.innerHTML = `
-            <div>
-              <div class="fname">@${escapeHtml(f.pseudo || doc.id)}</div>
-              <div class="fmeta">Ami</div>
-            </div>
-            <div class="friend-actions">
-              <button type="button" class="danger" data-remove-friend="${doc.id}">Retirer</button>
-            </div>`;
-          list.appendChild(card);
-        });
-        list.querySelectorAll('[data-remove-friend]').forEach(btn => {
-          btn.addEventListener('click', () => removeFriend(btn.dataset.removeFriend));
-        });
-      }, err => console.error(err));
+        if (list) list.innerHTML = '<div class="social-empty">Erreur temps réel amis</div>';
+        refreshFriendsOnce();
+      });
 
     requestsUnsub = db.collection('users').doc(uid).collection('incomingRequests')
       .onSnapshot(snap => {
@@ -2062,11 +2093,34 @@
         socialFlash('Tu ne peux pas t’ajouter toi-même.', 'err');
         return;
       }
-      const already = await db.collection('users').doc(currentUser.uid).collection('friends').doc(targetUid).get();
+      const myFriendRef = db.collection('users').doc(currentUser.uid).collection('friends').doc(targetUid);
+      const theirFriendRef = db.collection('users').doc(targetUid).collection('friends').doc(currentUser.uid);
+      const already = await myFriendRef.get();
       if (already.exists) {
-        socialFlash('Vous êtes déjà amis.', 'err');
+        // Répare le lien côté opposé si besoin + rafraîchit la liste
+        try {
+          const theirs = await theirFriendRef.get();
+          if (!theirs.exists) {
+            await theirFriendRef.set({
+              uid: currentUser.uid,
+              pseudo: state.pseudo,
+              since: firebase.firestore.FieldValue.serverTimestamp()
+            });
+          }
+        } catch (e) { console.warn('heal friend link', e); }
+        await refreshFriendsOnce();
+        socialFlash('Vous êtes déjà amis avec @' + targetPseudo + ' — liste rafraîchie.', 'ok');
+        document.getElementById('friendSearchInput').value = '';
         return;
       }
+
+      // Déjà une demande en attente ?
+      const outExists = await db.collection('users').doc(currentUser.uid).collection('outgoingRequests').doc(targetUid).get();
+      if (outExists.exists) {
+        socialFlash('Demande déjà envoyée à @' + targetPseudo + ' — en attente.', 'ok');
+        return;
+      }
+
       const batch = db.batch();
       batch.set(db.collection('users').doc(currentUser.uid).collection('outgoingRequests').doc(targetUid), {
         uid: targetUid, pseudo: targetPseudo,
@@ -2150,6 +2204,372 @@
   document.getElementById('friendAddBtn').addEventListener('click', sendFriendRequest);
   document.getElementById('friendSearchInput').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') sendFriendRequest();
+  });
+
+  /* ---- DÉFIS ---- */
+  let challengesUnsubFrom = null;
+  let challengesUnsubTo = null;
+  let chronoTickTimer = null;
+  let activeChronoChallengeId = null;
+  let cachedChallenges = {};
+
+  const CHALLENGE_TYPE_LABELS = {
+    score_day: 'Score du jour',
+    exercise: 'Exercice',
+    goal: 'Objectif',
+    chrono: 'Chrono duel'
+  };
+
+  function stopChallengeListeners() {
+    if (challengesUnsubFrom) { challengesUnsubFrom(); challengesUnsubFrom = null; }
+    if (challengesUnsubTo) { challengesUnsubTo(); challengesUnsubTo = null; }
+    if (chronoTickTimer) { clearInterval(chronoTickTimer); chronoTickTimer = null; }
+  }
+
+  async function populateChallengeFriends() {
+    const sel = document.getElementById('challengeFriendSelect');
+    if (!sel || !currentUser) return;
+    sel.innerHTML = '<option value="">Choisir un ami…</option>';
+    try {
+      const snap = await db.collection('users').doc(currentUser.uid).collection('friends').get();
+      snap.forEach(doc => {
+        const f = doc.data();
+        const opt = document.createElement('option');
+        opt.value = doc.id;
+        opt.textContent = '@' + (f.pseudo || doc.id);
+        opt.dataset.pseudo = f.pseudo || doc.id;
+        sel.appendChild(opt);
+      });
+    } catch (e) { console.error(e); }
+  }
+
+  function populateChallengeExercises() {
+    const sel = document.getElementById('challengeExerciseSelect');
+    if (!sel) return;
+    sel.innerHTML = '';
+    (state.exercises || []).forEach(ex => {
+      const opt = document.createElement('option');
+      opt.value = ex.id;
+      opt.textContent = ex.name + ' (' + ex.unit + ')';
+      sel.appendChild(opt);
+    });
+  }
+
+  function updateChallengeTypeFields() {
+    const type = document.getElementById('challengeTypeSelect').value;
+    document.getElementById('challengeExerciseField').style.display = type === 'exercise' ? 'block' : 'none';
+    document.getElementById('challengeGoalField').style.display = type === 'goal' ? 'block' : 'none';
+  }
+
+  document.getElementById('challengeTypeSelect').addEventListener('change', updateChallengeTypeFields);
+
+  async function sendChallenge() {
+    if (!currentUser || !state.pseudo) {
+      socialFlash('Connecte-toi avec un pseudo.', 'err');
+      return;
+    }
+    const sel = document.getElementById('challengeFriendSelect');
+    const toUid = sel.value;
+    if (!toUid) { socialFlash('Choisis un ami.', 'err'); return; }
+    const toPseudo = sel.options[sel.selectedIndex].dataset.pseudo || sel.options[sel.selectedIndex].textContent.replace('@','');
+    const type = document.getElementById('challengeTypeSelect').value;
+
+    const data = {
+      type,
+      fromUid: currentUser.uid,
+      fromPseudo: state.pseudo,
+      toUid,
+      toPseudo,
+      status: 'pending',
+      dayKey: todayKey(),
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+
+    if (type === 'exercise') {
+      const exId = document.getElementById('challengeExerciseSelect').value;
+      const ex = (state.exercises || []).find(e => e.id === exId);
+      if (!ex) { socialFlash('Choisis un exercice.', 'err'); return; }
+      data.exerciseId = ex.id;
+      data.exerciseName = ex.name;
+      data.exerciseUnit = ex.unit;
+    }
+    if (type === 'goal') {
+      const g = parseFloat(document.getElementById('challengeGoalInput').value) || 0;
+      if (g < 10) { socialFlash('Objectif trop bas.', 'err'); return; }
+      data.goalPoints = g;
+    }
+    if (type === 'chrono') {
+      data.chrono = { startedAt: null, fromStoppedAt: null, toStoppedAt: null, fromMs: null, toMs: null };
+    }
+
+    try {
+      await db.collection('challenges').add(data);
+      socialFlash('Défi envoyé à @' + toPseudo, 'ok');
+      logEvent('challenge_sent', { type });
+    } catch (e) {
+      console.error(e);
+      socialFlash('Erreur envoi défi (règles Firestore ?)', 'err');
+    }
+  }
+
+  document.getElementById('challengeSendBtn').addEventListener('click', sendChallenge);
+
+  function myScoreToday() { return Math.round(computeScore(state)); }
+  function myExerciseValue(exId) {
+    const ex = (state.exercises || []).find(e => e.id === exId);
+    return ex ? ex.value : 0;
+  }
+
+  function renderChallengesList() {
+    const list = document.getElementById('challengesList');
+    if (!list || !currentUser) return;
+    const items = Object.values(cachedChallenges).sort((a, b) => {
+      const ta = a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0;
+      const tb = b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0;
+      return tb - ta;
+    });
+    if (!items.length) {
+      list.innerHTML = '<div class="social-empty">Aucun défi</div>';
+      return;
+    }
+    list.innerHTML = '';
+    items.forEach(ch => {
+      const card = document.createElement('div');
+      card.className = 'challenge-card status-' + ch.status;
+      const isFromMe = ch.fromUid === currentUser.uid;
+      const other = isFromMe ? ch.toPseudo : ch.fromPseudo;
+      let detail = '';
+      if (ch.type === 'score_day') detail = 'Qui a le plus de points aujourd’hui';
+      if (ch.type === 'exercise') detail = 'Le plus de ' + (ch.exerciseName || 'exercice');
+      if (ch.type === 'goal') detail = 'Atteindre ' + (ch.goalPoints || '?') + ' pts';
+      if (ch.type === 'chrono') detail = 'Chrono duel — premier qui stoppe';
+
+      let statusLine = '';
+      if (ch.status === 'pending') statusLine = isFromMe ? 'En attente de @' + other : '@' + other + ' t’a défié';
+      if (ch.status === 'active') statusLine = 'En cours vs @' + other;
+      if (ch.status === 'declined') statusLine = 'Refusé';
+      if (ch.status === 'cancelled') statusLine = 'Annulé';
+      if (ch.status === 'completed') {
+        if (ch.winnerUid === currentUser.uid) statusLine = '🏆 Tu as gagné vs @' + other;
+        else if (ch.winnerUid === 'draw') statusLine = 'Égalité avec @' + other;
+        else statusLine = 'Perdu contre @' + other;
+        if (ch.resultText) statusLine += ' — ' + ch.resultText;
+      }
+
+      let actions = '';
+      if (ch.status === 'pending' && !isFromMe) {
+        actions = `<button type="button" class="primary" data-ch-accept="${ch.id}">Accepter</button>
+                   <button type="button" class="danger" data-ch-decline="${ch.id}">Refuser</button>`;
+      }
+      if (ch.status === 'pending' && isFromMe) {
+        actions = `<button type="button" class="danger" data-ch-cancel="${ch.id}">Annuler</button>`;
+      }
+      if (ch.status === 'active' && (ch.type === 'score_day' || ch.type === 'exercise' || ch.type === 'goal')) {
+        actions = `<button type="button" class="primary" data-ch-resolve="${ch.id}">Clôturer / comparer</button>`;
+      }
+      if (ch.status === 'active' && ch.type === 'chrono') {
+        actions = `<button type="button" class="primary" data-ch-chrono="${ch.id}">Ouvrir le chrono</button>`;
+      }
+
+      let chronoHtml = '';
+      if (ch.status === 'active' && ch.type === 'chrono' && activeChronoChallengeId === ch.id) {
+        chronoHtml = `<div class="chrono-box" id="chronoBox">
+          <div class="chrono-status" id="chronoStatus">Prêt</div>
+          <div class="chrono-time" id="chronoTime">00:00.0</div>
+          <div class="cactions" style="justify-content:center;">
+            <button type="button" class="primary" id="chronoStartBtn">Démarrer</button>
+            <button type="button" class="danger" id="chronoStopBtn">Stop</button>
+          </div>
+        </div>`;
+      }
+
+      card.innerHTML = `
+        <div class="ctype">${CHALLENGE_TYPE_LABELS[ch.type] || ch.type}</div>
+        <div class="ctitle">vs @${escapeHtml(other || '?')}</div>
+        <div class="cmeta">${escapeHtml(detail)}<br>${escapeHtml(statusLine)}</div>
+        <div class="cactions">${actions}</div>
+        ${chronoHtml}`;
+      list.appendChild(card);
+    });
+
+    list.querySelectorAll('[data-ch-accept]').forEach(b => b.addEventListener('click', () => respondChallenge(b.dataset.chAccept, 'active')));
+    list.querySelectorAll('[data-ch-decline]').forEach(b => b.addEventListener('click', () => respondChallenge(b.dataset.chDecline, 'declined')));
+    list.querySelectorAll('[data-ch-cancel]').forEach(b => b.addEventListener('click', () => respondChallenge(b.dataset.chCancel, 'cancelled')));
+    list.querySelectorAll('[data-ch-resolve]').forEach(b => b.addEventListener('click', () => resolveChallenge(b.dataset.chResolve)));
+    list.querySelectorAll('[data-ch-chrono]').forEach(b => b.addEventListener('click', () => {
+      activeChronoChallengeId = b.dataset.chChrono;
+      renderChallengesList();
+      setupChronoHandlers(b.dataset.chChrono);
+    }));
+  }
+
+  function loadChallenges() {
+    if (!currentUser) return;
+    stopChallengeListeners();
+    cachedChallenges = {};
+    const merge = (snap) => {
+      snap.forEach(doc => { cachedChallenges[doc.id] = { id: doc.id, ...doc.data() }; });
+      snap.docChanges().forEach(change => {
+        if (change.type === 'removed') delete cachedChallenges[change.doc.id];
+      });
+      renderChallengesList();
+    };
+    challengesUnsubFrom = db.collection('challenges').where('fromUid', '==', currentUser.uid)
+      .onSnapshot(merge, err => console.error(err));
+    challengesUnsubTo = db.collection('challenges').where('toUid', '==', currentUser.uid)
+      .onSnapshot(merge, err => console.error(err));
+  }
+
+  async function respondChallenge(id, status) {
+    try {
+      await db.collection('challenges').doc(id).update({
+        status,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      socialFlash(status === 'active' ? 'Défi accepté !' : (status === 'declined' ? 'Défi refusé' : 'Défi annulé'), 'ok');
+    } catch (e) {
+      console.error(e);
+      socialFlash('Erreur', 'err');
+    }
+  }
+
+  async function resolveChallenge(id) {
+    const ch = cachedChallenges[id];
+    if (!ch || !currentUser) return;
+    const isFrom = ch.fromUid === currentUser.uid;
+    let myVal = 0, label = '';
+    if (ch.type === 'score_day' || ch.type === 'goal') { myVal = myScoreToday(); label = 'pts'; }
+    else if (ch.type === 'exercise') { myVal = myExerciseValue(ch.exerciseId); label = ch.exerciseUnit || ''; }
+
+    const field = isFrom ? 'fromScore' : 'toScore';
+    try {
+      await db.collection('challenges').doc(id).update({
+        [field]: myVal,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      const snap = await db.collection('challenges').doc(id).get();
+      const fresh = snap.data();
+      const fromScore = typeof fresh.fromScore === 'number' ? fresh.fromScore : null;
+      const toScore = typeof fresh.toScore === 'number' ? fresh.toScore : null;
+      if (fromScore === null || toScore === null) {
+        socialFlash('Score enregistré. En attente de l’autre…', 'ok');
+        return;
+      }
+      let winnerUid = 'draw';
+      let resultText = fromScore + ' vs ' + toScore + ' ' + label;
+      if (ch.type === 'goal') {
+        const fromOk = fromScore >= (ch.goalPoints || 0);
+        const toOk = toScore >= (ch.goalPoints || 0);
+        if (fromOk && !toOk) winnerUid = ch.fromUid;
+        else if (toOk && !fromOk) winnerUid = ch.toUid;
+        else if (fromOk && toOk) {
+          if (fromScore > toScore) winnerUid = ch.fromUid;
+          else if (toScore > fromScore) winnerUid = ch.toUid;
+        }
+        resultText = `objectif ${ch.goalPoints} — ${fromScore} vs ${toScore}`;
+      } else {
+        if (fromScore > toScore) winnerUid = ch.fromUid;
+        else if (toScore > fromScore) winnerUid = ch.toUid;
+      }
+      await db.collection('challenges').doc(id).update({
+        status: 'completed', winnerUid, resultText,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      socialFlash('Défi terminé !', 'ok');
+    } catch (e) {
+      console.error(e);
+      socialFlash('Erreur clôture', 'err');
+    }
+  }
+
+  function setupChronoHandlers(challengeId) {
+    const startBtn = document.getElementById('chronoStartBtn');
+    const stopBtn = document.getElementById('chronoStopBtn');
+    if (!startBtn || !stopBtn) return;
+
+    startBtn.onclick = async () => {
+      try {
+        await db.collection('challenges').doc(challengeId).update({
+          'chrono.startedAt': firebase.firestore.FieldValue.serverTimestamp(),
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      } catch (e) { socialFlash('Erreur démarrage chrono', 'err'); }
+    };
+
+    stopBtn.onclick = async () => {
+      const ch = cachedChallenges[challengeId];
+      if (!ch || !ch.chrono || !ch.chrono.startedAt) {
+        socialFlash('Le chrono n’a pas encore démarré', 'err');
+        return;
+      }
+      const isFrom = ch.fromUid === currentUser.uid;
+      const fieldStopped = isFrom ? 'chrono.fromStoppedAt' : 'chrono.toStoppedAt';
+      try {
+        await db.collection('challenges').doc(challengeId).update({
+          [fieldStopped]: firebase.firestore.FieldValue.serverTimestamp(),
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        const snap = await db.collection('challenges').doc(challengeId).get();
+        const fresh = snap.data();
+        const c = fresh.chrono || {};
+        if (c.startedAt && c.fromStoppedAt && c.toStoppedAt) {
+          const start = c.startedAt.toMillis();
+          const fromMs = c.fromStoppedAt.toMillis() - start;
+          const toMs = c.toStoppedAt.toMillis() - start;
+          let winnerUid = 'draw';
+          if (fromMs < toMs) winnerUid = fresh.fromUid;
+          else if (toMs < fromMs) winnerUid = fresh.toUid;
+          await db.collection('challenges').doc(challengeId).update({
+            status: 'completed', winnerUid,
+            resultText: `chrono ${(fromMs/1000).toFixed(1)}s vs ${(toMs/1000).toFixed(1)}s`,
+            'chrono.fromMs': fromMs, 'chrono.toMs': toMs,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          socialFlash('Chrono terminé !', 'ok');
+        } else {
+          socialFlash('Stop enregistré — en attente de l’autre', 'ok');
+        }
+      } catch (e) {
+        console.error(e);
+        socialFlash('Erreur stop', 'err');
+      }
+    };
+
+    if (chronoTickTimer) clearInterval(chronoTickTimer);
+    chronoTickTimer = setInterval(() => {
+      const ch = cachedChallenges[challengeId];
+      const timeEl = document.getElementById('chronoTime');
+      const statusEl = document.getElementById('chronoStatus');
+      if (!ch || !timeEl) return;
+      const c = ch.chrono || {};
+      if (!c.startedAt) {
+        timeEl.textContent = '00:00.0';
+        if (statusEl) statusEl.textContent = 'En attente du démarrage…';
+        return;
+      }
+      const start = c.startedAt.toMillis ? c.startedAt.toMillis() : Date.now();
+      const isFrom = ch.fromUid === currentUser.uid;
+      const myStopped = isFrom ? c.fromStoppedAt : c.toStoppedAt;
+      const end = myStopped && myStopped.toMillis ? myStopped.toMillis() : Date.now();
+      const ms = Math.max(0, end - start);
+      const s = Math.floor(ms / 1000);
+      const m = Math.floor(s / 60);
+      const ds = Math.floor((ms % 1000) / 100);
+      timeEl.textContent = String(m).padStart(2,'0') + ':' + String(s % 60).padStart(2,'0') + '.' + ds;
+      if (statusEl) statusEl.textContent = myStopped ? 'Tu as stoppé — en attente de l’autre…' : 'Chrono en cours !';
+    }, 100);
+  }
+
+  document.querySelectorAll('.social-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      if (tab.dataset.social === 'defis') {
+        populateChallengeFriends();
+        populateChallengeExercises();
+        updateChallengeTypeFields();
+        if (currentUser) loadChallenges();
+      }
+    });
   });
 
   /* ---- MESSAGERIE ---- */

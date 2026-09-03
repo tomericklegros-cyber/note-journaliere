@@ -147,8 +147,37 @@
 
     <!-- DÉFIS -->
     <div class="social-section" id="social-defis">
-      <div class="social-hint">Défie un ami sur le score du jour. (Prochaine étape : lancer un vrai défi.)</div>
-      <div id="challengesList"><div class="social-empty">Aucun défi en cours</div></div>
+      <div class="social-hint">Défie un ami : score du jour, un exercice, un objectif, ou un chrono duel.</div>
+
+      <div class="challenge-create" id="challengeCreateBox">
+        <div class="settings-field" style="margin-bottom:8px;">
+          <label>Ami</label>
+          <select id="challengeFriendSelect" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--stone-dark);color:var(--ink);">
+            <option value="">Choisir un ami…</option>
+          </select>
+        </div>
+        <div class="settings-field" style="margin-bottom:8px;">
+          <label>Type de défi</label>
+          <select id="challengeTypeSelect" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--stone-dark);color:var(--ink);">
+            <option value="score_day">Score du jour — qui a le plus de points</option>
+            <option value="exercise">Exercice — qui en fait le plus</option>
+            <option value="goal">Objectif — atteindre X points</option>
+            <option value="chrono">Chrono duel — démarrez ensemble, le 1er qui stoppe</option>
+          </select>
+        </div>
+        <div class="settings-field" id="challengeExerciseField" style="margin-bottom:8px;display:none;">
+          <label>Exercice</label>
+          <select id="challengeExerciseSelect" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--stone-dark);color:var(--ink);"></select>
+        </div>
+        <div class="settings-field" id="challengeGoalField" style="margin-bottom:8px;display:none;">
+          <label>Objectif (points)</label>
+          <input type="number" id="challengeGoalInput" min="10" step="10" value="150" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--stone-dark);color:var(--ink);">
+        </div>
+        <button type="button" class="auth-btn primary" id="challengeSendBtn">Envoyer le défi</button>
+      </div>
+
+      <div class="modal-section-title" style="margin-top:16px;">Défis en cours</div>
+      <div id="challengesList"><div class="social-empty">Aucun défi</div></div>
     </div>
 
     <!-- MESSAGES -->
