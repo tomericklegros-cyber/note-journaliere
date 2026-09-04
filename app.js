@@ -154,6 +154,33 @@
     openPseudoModal(true);
   }
 
+  async function publishPublicProfile() {
+    if (!currentUser) return;
+    try {
+      const score = Math.round(computeScore(state));
+      const { current } = getRank(score);
+      const level = typeof levelFromXp === 'function' ? levelFromXp(state.xp || 0) : 1;
+      const badges = typeof getBadges === 'function' ? getBadges() : [];
+      const badgesUnlocked = badges.filter(b => b.done).length;
+      await db.collection('publicProfiles').doc(currentUser.uid).set({
+        uid: currentUser.uid,
+        pseudo: state.pseudo || '',
+        userName: state.userName || '',
+        xp: state.xp || 0,
+        level,
+        todayScore: score,
+        rankName: current.name,
+        rankColor: current.color,
+        badgesUnlocked,
+        badgesTotal: badges.length,
+        dayKey: state.dayKey,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+    } catch (e) {
+      console.warn('public profile', e);
+    }
+  }
+
   async function saveToCloud() {
     if (!currentUser || syncing) return;
     syncing = true;
@@ -164,6 +191,7 @@
         clientUpdatedAt: Date.now()
       };
       await db.collection('users').doc(currentUser.uid).set(payload, { merge: true });
+      await publishPublicProfile();
       lastCloudSave = Date.now();
       setAuthStatus('Synchronisé ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }), 'synced');
     } catch (err) {
@@ -190,6 +218,9 @@
           history: Array.isArray(cloud.history) ? cloud.history : [],
           records: cloud.records && typeof cloud.records === 'object' ? cloud.records : { bestScore: null, perExercise: {} },
           dailyGoal: typeof cloud.dailyGoal === 'number' ? cloud.dailyGoal : base.dailyGoal,
+          dayNotes: cloud.dayNotes && typeof cloud.dayNotes === 'object' ? cloud.dayNotes : {},
+          xp: typeof cloud.xp === 'number' ? cloud.xp : 0,
+          xpClaimedChallenges: Array.isArray(cloud.xpClaimedChallenges) ? cloud.xpClaimedChallenges : [],
           seenBadges: Array.isArray(cloud.seenBadges) ? cloud.seenBadges : [],
           secretBadgeUnlocked: typeof cloud.secretBadgeUnlocked === 'boolean' ? cloud.secretBadgeUnlocked : false,
           hackerCelebratedToday: typeof cloud.hackerCelebratedToday === 'boolean' ? cloud.hackerCelebratedToday : false,
@@ -327,27 +358,7 @@
     }
   });
 
-  document.getElementById('forgotPasswordBtn').addEventListener('click', async () => {
-    const email = document.getElementById('loginEmail').value.trim();
-    const flashEl = document.getElementById('loginFlash');
-    if (!email) {
-      flashEl.textContent = 'Entrez votre email ci-dessus, puis cliquez à nouveau ici.';
-      return;
-    }
-    try {
-      flashEl.textContent = 'Envoi en cours…';
-      await auth.sendPasswordResetEmail(email);
-      flashEl.textContent = 'Email envoyé ! Vérifiez votre boîte de réception (et les spams).';
-    } catch (err) {
-      flashEl.textContent = err.code === 'auth/user-not-found'
-        ? 'Aucun compte avec cet email.'
-        : (err.message || 'Erreur lors de l\'envoi.');
-    }
-  });
-
   document.getElementById('logoutBtn').addEventListener('click', async () => {
-    const ok = confirm("Voulez-vous vraiment vous déconnecter ?");
-    if (!ok) return;
     try {
       await auth.signOut();
       setAuthStatus('Déconnecté — données locales', null);
@@ -390,7 +401,10 @@
       seenBadges: [],
       secretBadgeUnlocked: false,
       hackerCelebratedToday: false,
-      difficultyBonus: 0
+      difficultyBonus: 0,
+      dayNotes: {},
+      xp: 0,
+      xpClaimedChallenges: []
     };
   }
 
@@ -435,6 +449,9 @@
         history: Array.isArray(parsed.history) ? parsed.history : [],
         records: parsed.records && typeof parsed.records === 'object' ? parsed.records : { bestScore: null, perExercise: {} },
         dailyGoal: typeof parsed.dailyGoal === 'number' ? parsed.dailyGoal : base.dailyGoal,
+        dayNotes: parsed.dayNotes && typeof parsed.dayNotes === 'object' ? parsed.dayNotes : {},
+        xp: typeof parsed.xp === 'number' ? parsed.xp : 0,
+        xpClaimedChallenges: Array.isArray(parsed.xpClaimedChallenges) ? parsed.xpClaimedChallenges : [],
         seenBadges: Array.isArray(parsed.seenBadges) ? parsed.seenBadges : null,
         secretBadgeUnlocked: typeof parsed.secretBadgeUnlocked === 'boolean' ? parsed.secretBadgeUnlocked : null,
         hackerCelebratedToday: typeof parsed.hackerCelebratedToday === 'boolean' ? parsed.hackerCelebratedToday : false,
@@ -967,7 +984,189 @@
     document.getElementById('dateBadge').textContent = new Date().toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: 'short' });
 
     renderHistory();
+    if (document.getElementById('section-calendar')?.classList.contains('active') ||
+        document.getElementById('section-calendar')?.style.display === 'block') {
+      renderCalendar();
+    }
     saveState();
+  }
+
+  /* ---- CALENDRIER ---- */
+  let calView = new Date(); // mois affiché
+  let calSelectedKey = null;
+
+  function scoreForDay(dayKey) {
+    if (dayKey === state.dayKey) return Math.round(computeScore(state));
+    const h = (state.history || []).find(x => x.day === dayKey);
+    return h ? Math.round(h.score || 0) : null;
+  }
+
+  function renderCalendar() {
+    const grid = document.getElementById('calGrid');
+    const label = document.getElementById('calMonthLabel');
+    if (!grid || !label) return;
+
+    const year = calView.getFullYear();
+    const month = calView.getMonth(); // 0-11
+    label.textContent = calView.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+
+    // Lundi = 0 ... Dimanche = 6
+    const first = new Date(year, month, 1);
+    let startPad = (first.getDay() + 6) % 7;
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const todayK = todayKey();
+
+    grid.innerHTML = '';
+    for (let i = 0; i < startPad; i++) {
+      const empty = document.createElement('div');
+      empty.className = 'cal-day empty';
+      grid.appendChild(empty);
+    }
+    for (let d = 1; d <= daysInMonth; d++) {
+      const key = year + '-' + (month + 1) + '-' + d;
+      const sc = scoreForDay(key);
+      const note = (state.dayNotes && state.dayNotes[key]) || '';
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'cal-day';
+      if (key === todayK) btn.classList.add('today');
+      if (sc !== null && sc > 0) btn.classList.add('has-score');
+      if (note) btn.classList.add('has-note');
+      if (key === calSelectedKey) btn.classList.add('selected');
+      btn.innerHTML = `<span class="cd-num">${d}</span>` +
+        (sc !== null && sc > 0 ? `<span class="cd-score">${sc}</span>` : '');
+      btn.addEventListener('click', () => selectCalDay(key));
+      grid.appendChild(btn);
+    }
+  }
+
+  function selectCalDay(key) {
+    calSelectedKey = key;
+    renderCalendar();
+    const title = document.getElementById('calDetailTitle');
+    const scoreEl = document.getElementById('calDetailScore');
+    const noteInput = document.getElementById('calNoteInput');
+    const flash = document.getElementById('calFlash');
+    if (flash) flash.textContent = '';
+
+    const [y, m, d] = key.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    title.textContent = date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+    const sc = scoreForDay(key);
+    if (key === state.dayKey) {
+      scoreEl.textContent = sc > 0
+        ? `Score du jour (en cours) : ${sc} pts — objectif ${state.dailyGoal} pts`
+        : `Aujourd’hui — pas encore de points (objectif ${state.dailyGoal} pts)`;
+    } else if (sc !== null && sc > 0) {
+      scoreEl.textContent = `Score : ${sc} pts`;
+    } else {
+      scoreEl.textContent = 'Aucun score enregistré ce jour-là';
+    }
+    noteInput.value = (state.dayNotes && state.dayNotes[key]) || '';
+  }
+
+  function saveCalNote() {
+    if (!calSelectedKey) {
+      document.getElementById('calFlash').textContent = 'Choisis un jour d’abord.';
+      return;
+    }
+    if (!state.dayNotes) state.dayNotes = {};
+    const text = (document.getElementById('calNoteInput').value || '').trim();
+    if (text) state.dayNotes[calSelectedKey] = text;
+    else delete state.dayNotes[calSelectedKey];
+    saveState();
+    renderCalendar();
+    document.getElementById('calFlash').textContent = 'Note enregistrée.';
+    logEvent('day_note_saved');
+  }
+
+  /* ---- XP / PROFIL ---- */
+  function xpForLevel(level) {
+    // XP total needed to REACH this level (level 1 = 0)
+    return Math.floor(50 * Math.pow(level - 1, 1.65));
+  }
+  function levelFromXp(xp) {
+    let level = 1;
+    while (xpForLevel(level + 1) <= xp && level < 99) level++;
+    return level;
+  }
+  function awardXp(amount, reason) {
+    if (!amount || amount <= 0) return;
+    state.xp = (state.xp || 0) + amount;
+    saveState();
+    logEvent('xp_gain', { amount, reason: reason || '' });
+    if (typeof flash === 'function') flash('+' + amount + ' XP' + (reason ? ' — ' + reason : ''));
+    else if (typeof socialFlash === 'function') socialFlash('+' + amount + ' XP', 'ok');
+  }
+  function tryClaimChallengeXp(ch) {
+    if (!currentUser || !ch || ch.status !== 'completed') return;
+    if (!state.xpClaimedChallenges) state.xpClaimedChallenges = [];
+    if (state.xpClaimedChallenges.includes(ch.id)) return;
+    const uid = currentUser.uid;
+    if (ch.fromUid !== uid && ch.toUid !== uid) return;
+    let amount = 10;
+    let reason = 'Défi terminé';
+    if (ch.winnerUid === uid) { amount = 50; reason = 'Défi gagné'; }
+    else if (ch.winnerUid === 'draw') { amount = 25; reason = 'Défi égalité'; }
+    state.xpClaimedChallenges.push(ch.id);
+    // garde une liste raisonnable
+    if (state.xpClaimedChallenges.length > 200) {
+      state.xpClaimedChallenges = state.xpClaimedChallenges.slice(-150);
+    }
+    awardXp(amount, reason);
+  }
+  async function renderProfile() {
+    const pseudoEl = document.getElementById('profilePseudo');
+    const emailEl = document.getElementById('profileEmail');
+    const avatarEl = document.getElementById('profileAvatar');
+    if (!pseudoEl) return;
+
+    const pseudo = state.pseudo || (currentUser && (currentUser.displayName || currentUser.email?.split('@')[0])) || 'Invité';
+    pseudoEl.textContent = state.pseudo ? '@' + state.pseudo : pseudo;
+    emailEl.textContent = currentUser?.email || (currentUser ? 'Connecté' : 'Données locales');
+    avatarEl.textContent = (state.pseudo || pseudo || '?').slice(0, 1).toUpperCase();
+
+    const xp = state.xp || 0;
+    const level = levelFromXp(xp);
+    const curFloor = xpForLevel(level);
+    const nextFloor = xpForLevel(level + 1);
+    const span = Math.max(1, nextFloor - curFloor);
+    const pct = Math.min(100, ((xp - curFloor) / span) * 100);
+
+    document.getElementById('profileLevel').textContent = 'Niveau ' + level;
+    document.getElementById('profileXpText').textContent = xp + ' XP';
+    document.getElementById('profileXpFill').style.width = pct + '%';
+    document.getElementById('profileXpHint').textContent =
+      (nextFloor - xp) + ' XP pour le niveau ' + (level + 1);
+
+    // Stats défis depuis le cache
+    let won = 0, played = 0;
+    if (typeof cachedChallenges === 'object' && cachedChallenges) {
+      Object.values(cachedChallenges).forEach(ch => {
+        if (!currentUser) return;
+        if (ch.status !== 'completed') return;
+        if (ch.fromUid !== currentUser.uid && ch.toUid !== currentUser.uid) return;
+        played++;
+        if (ch.winnerUid === currentUser.uid) won++;
+        tryClaimChallengeXp(ch);
+      });
+    }
+    document.getElementById('statChallengesWon').textContent = String(won);
+    document.getElementById('statChallengesPlayed').textContent = String(played);
+
+    // Amis
+    let friendsCount = 0;
+    if (currentUser) {
+      try {
+        const snap = await db.collection('users').doc(currentUser.uid).collection('friends').get();
+        friendsCount = snap.size;
+      } catch (e) {}
+    }
+    document.getElementById('statFriends').textContent = String(friendsCount);
+
+    const days = (state.history || []).length + (computeScore(state) > 0 ? 1 : 0);
+    document.getElementById('statDays').textContent = String(days);
   }
 
   function renderHistory() {
@@ -1726,6 +1925,13 @@
     navButtons.forEach(btn => {
       btn.classList.toggle('active', btn.dataset.target === targetId);
     });
+    if (targetId === 'section-calendar') {
+      renderCalendar();
+      if (!calSelectedKey) selectCalDay(todayKey());
+    }
+    if (targetId === 'section-profile') {
+      renderProfile();
+    }
   }
 
   navButtons.forEach(btn => {
@@ -1734,6 +1940,20 @@
       showSection(btn.dataset.target);
       closeNav();
     });
+  });
+
+  document.getElementById('calPrevBtn')?.addEventListener('click', () => {
+    calView.setMonth(calView.getMonth() - 1);
+    renderCalendar();
+  });
+  document.getElementById('calNextBtn')?.addEventListener('click', () => {
+    calView.setMonth(calView.getMonth() + 1);
+    renderCalendar();
+  });
+  document.getElementById('calSaveNoteBtn')?.addEventListener('click', saveCalNote);
+  document.getElementById('dateBadge')?.addEventListener('click', () => {
+    showSection('section-calendar');
+    closeNav();
   });
 
   document.getElementById('navSettingsLink').addEventListener('click', () => {
@@ -1980,14 +2200,64 @@
           <div class="fmeta">Ami</div>
         </div>
         <div class="friend-actions">
+          <button type="button" class="primary" data-view-profile="${id}" data-view-pseudo="${escapeHtml(f.pseudo || '')}">Profil</button>
           <button type="button" class="danger" data-remove-friend="${id}">Retirer</button>
         </div>`;
       list.appendChild(card);
     });
     list.querySelectorAll('[data-remove-friend]').forEach(btn => {
-      btn.addEventListener('click', () => removeFriend(btn.dataset.removeFriend));
+      btn.addEventListener('click', (e) => { e.stopPropagation(); removeFriend(btn.dataset.removeFriend); });
+    });
+    list.querySelectorAll('[data-view-profile]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openFriendProfile(btn.dataset.viewProfile, btn.dataset.viewPseudo);
+      });
     });
   }
+
+  async function openFriendProfile(uid, fallbackPseudo) {
+    const overlay = document.getElementById('friendProfileOverlay');
+    if (!overlay) return;
+    document.getElementById('fpPseudo').textContent = '@' + (fallbackPseudo || '…');
+    document.getElementById('fpRank').textContent = 'Chargement…';
+    document.getElementById('fpScore').textContent = '—';
+    document.getElementById('fpLevel').textContent = '—';
+    document.getElementById('fpXp').textContent = '—';
+    document.getElementById('fpBadges').textContent = '—';
+    overlay.classList.add('open');
+    try {
+      const snap = await db.collection('publicProfiles').doc(uid).get();
+      if (!snap.exists) {
+        document.getElementById('fpRank').textContent = 'Profil pas encore publié';
+        document.getElementById('fpScore').textContent = 'Demande à ton ami d’ouvrir l’app une fois connecté';
+        return;
+      }
+      const p = snap.data();
+      document.getElementById('fpPseudo').textContent = '@' + (p.pseudo || fallbackPseudo || '?');
+      document.getElementById('fpAvatar').textContent = (p.pseudo || '?').slice(0, 1).toUpperCase();
+      document.getElementById('fpRank').textContent = p.rankName || '—';
+      if (p.rankColor) {
+        document.getElementById('fpRank').style.color = p.rankColor;
+      }
+      document.getElementById('fpScore').textContent =
+        (typeof p.todayScore === 'number' ? p.todayScore + ' pts aujourd’hui' : 'Score inconnu');
+      document.getElementById('fpLevel').textContent = 'Niveau ' + (p.level || 1);
+      document.getElementById('fpXp').textContent = (p.xp || 0) + ' XP';
+      document.getElementById('fpBadges').textContent =
+        (p.badgesUnlocked || 0) + ' / ' + (p.badgesTotal || 0) + ' badges';
+    } catch (e) {
+      console.error(e);
+      document.getElementById('fpRank').textContent = 'Impossible de charger le profil';
+    }
+  }
+  function closeFriendProfile() {
+    document.getElementById('friendProfileOverlay')?.classList.remove('open');
+  }
+  document.getElementById('fpCloseBtn')?.addEventListener('click', closeFriendProfile);
+  document.getElementById('friendProfileOverlay')?.addEventListener('click', (e) => {
+    if (e.target.id === 'friendProfileOverlay') closeFriendProfile();
+  });
 
   async function refreshFriendsOnce() {
     if (!currentUser) return;
@@ -2496,6 +2766,7 @@
         status: 'completed', winnerUid, resultText,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       });
+      tryClaimChallengeXp({ id, status: 'completed', winnerUid, fromUid: ch.fromUid, toUid: ch.toUid });
       socialFlash('Défi terminé !', 'ok');
     } catch (e) {
       console.error(e);
@@ -2545,6 +2816,10 @@
             resultText: `chrono ${(fromMs/1000).toFixed(1)}s vs ${(toMs/1000).toFixed(1)}s`,
             'chrono.fromMs': fromMs, 'chrono.toMs': toMs,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          tryClaimChallengeXp({
+            id: challengeId, status: 'completed', winnerUid,
+            fromUid: fresh.fromUid, toUid: fresh.toUid
           });
           socialFlash('Chrono terminé !', 'ok');
         } else {

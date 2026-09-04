@@ -209,6 +209,8 @@
   <button type="button" class="nav-item" data-target="section-records"><span class="nav-ico">🏆</span> Records</button>
   <button type="button" class="nav-item" data-target="section-badges"><span class="nav-ico">🎖️</span> Badges</button>
   <button type="button" class="nav-item" data-target="section-history"><span class="nav-ico">🗂️</span> Historique</button>
+  <button type="button" class="nav-item" data-target="section-calendar"><span class="nav-ico">📅</span> Calendrier</button>
+  <button type="button" class="nav-item" data-target="section-profile"><span class="nav-ico">👤</span> Profil</button>
   <button type="button" class="nav-item" id="navSettingsLink"><span class="nav-ico">⚙️</span> Paramètres</button>
 
   <div class="auth-box" id="authBox">
@@ -420,6 +422,60 @@
         </div>
         <div class="flash" id="exportFlash"></div>
       </div>
+
+      <div class="card profile-card app-section" id="section-profile">
+        <h2>Profil</h2>
+        <div class="profile-header">
+          <div class="profile-avatar" id="profileAvatar">?</div>
+          <div class="profile-identity">
+            <div class="profile-pseudo" id="profilePseudo">Non connecté</div>
+            <div class="profile-email" id="profileEmail">—</div>
+          </div>
+        </div>
+        <div class="profile-level-box">
+          <div class="profile-level-row">
+            <span class="profile-level" id="profileLevel">Niveau 1</span>
+            <span class="profile-xp-text" id="profileXpText">0 XP</span>
+          </div>
+          <div class="profile-xp-bar"><div class="profile-xp-fill" id="profileXpFill"></div></div>
+          <div class="profile-xp-hint" id="profileXpHint">Gagne de l’XP en terminant des défis</div>
+        </div>
+        <div class="profile-stats">
+          <div class="profile-stat"><div class="ps-val" id="statChallengesWon">0</div><div class="ps-label">Défis gagnés</div></div>
+          <div class="profile-stat"><div class="ps-val" id="statChallengesPlayed">0</div><div class="ps-label">Défis joués</div></div>
+          <div class="profile-stat"><div class="ps-val" id="statFriends">0</div><div class="ps-label">Amis</div></div>
+          <div class="profile-stat"><div class="ps-val" id="statDays">0</div><div class="ps-label">Jours actifs</div></div>
+        </div>
+        <div class="profile-howto">
+          <strong>Comment gagner de l’XP ?</strong>
+          <ul>
+            <li>Gagner un défi : <b>+50 XP</b></li>
+            <li>Égalité : <b>+25 XP</b></li>
+            <li>Participer (défaite) : <b>+10 XP</b></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card calendar-card app-section" id="section-calendar">
+        <h2>Calendrier</h2>
+        <div class="cal-nav">
+          <button type="button" class="ghost-btn" id="calPrevBtn">←</button>
+          <div class="cal-month-label" id="calMonthLabel">—</div>
+          <button type="button" class="ghost-btn" id="calNextBtn">→</button>
+        </div>
+        <div class="cal-weekdays">
+          <span>Lun</span><span>Mar</span><span>Mer</span><span>Jeu</span><span>Ven</span><span>Sam</span><span>Dim</span>
+        </div>
+        <div class="cal-grid" id="calGrid"></div>
+        <div class="cal-detail" id="calDetail">
+          <div class="cal-detail-title" id="calDetailTitle">Sélectionne un jour</div>
+          <div class="cal-detail-score" id="calDetailScore"></div>
+          <label class="cal-note-label">Note de séance</label>
+          <textarea id="calNoteInput" rows="3" placeholder="Comment s’est passée la séance ?" maxlength="500"></textarea>
+          <button type="button" class="auth-btn primary" id="calSaveNoteBtn" style="margin-top:10px;">Enregistrer la note</button>
+          <div class="flash" id="calFlash" style="min-height:16px;margin-top:8px;"></div>
+        </div>
+      </div>
     </div>
 
   </div>
@@ -518,7 +574,6 @@
       <input type="password" id="loginPassword" placeholder="Mot de passe" autocomplete="current-password">
       <button type="button" class="auth-btn primary" id="emailLoginBtn">Se connecter</button>
       <button type="button" class="auth-btn" id="emailRegisterBtn">Créer un compte</button>
-      <button type="button" class="forgot-password-link" id="forgotPasswordBtn">Mot de passe oublié ?</button>
     </div>
 
     <div class="flash" id="loginFlash" style="margin-top:14px; min-height:18px;"></div>
@@ -551,6 +606,27 @@
     <div class="flash" id="pseudoFlash" style="margin-top:10px;min-height:18px;"></div>
     <div class="modal-actions" style="margin-top:16px;">
       <button class="save-btn" id="pseudoSaveBtn" style="flex:1;">Valider mon pseudo</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="friendProfileOverlay">
+  <div class="modal-panel" style="max-width: 400px;">
+    <div class="profile-header" style="margin-bottom:12px;">
+      <div class="profile-avatar" id="fpAvatar">?</div>
+      <div class="profile-identity">
+        <div class="profile-pseudo" id="fpPseudo">@ami</div>
+        <div class="profile-email" id="fpRank">—</div>
+      </div>
+    </div>
+    <div class="profile-stats" style="margin-bottom:12px;">
+      <div class="profile-stat"><div class="ps-val" id="fpScore" style="font-size:16px;">—</div><div class="ps-label">Score</div></div>
+      <div class="profile-stat"><div class="ps-val" id="fpLevel" style="font-size:16px;">—</div><div class="ps-label">Niveau</div></div>
+      <div class="profile-stat"><div class="ps-val" id="fpXp" style="font-size:16px;">—</div><div class="ps-label">XP</div></div>
+      <div class="profile-stat"><div class="ps-val" id="fpBadges" style="font-size:16px;">—</div><div class="ps-label">Badges</div></div>
+    </div>
+    <div class="modal-actions">
+      <button class="cancel-btn" id="fpCloseBtn" style="flex:1;">Fermer</button>
     </div>
   </div>
 </div>
