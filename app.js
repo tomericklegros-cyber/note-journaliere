@@ -2695,7 +2695,7 @@
       if (ch.type === 'score_day') detail = 'Qui a le plus de points aujourd’hui';
       if (ch.type === 'exercise') detail = 'Le plus de ' + (ch.exerciseName || 'exercice');
       if (ch.type === 'goal') detail = 'Atteindre ' + (ch.goalPoints || '?') + ' pts';
-      if (ch.type === 'chrono') detail = 'Chrono duel — premier qui stoppe';
+      if (ch.type === 'chrono') detail = 'Chrono duel — celui qui tient le plus longtemps';
 
       let statusLine = '';
       if (ch.status === 'pending') statusLine = isFromMe ? 'En attente de @' + other : '@' + other + ' t’a défié';
@@ -2976,10 +2976,10 @@
             const start = c.startedAt.toMillis();
             const fromMs = c.fromStoppedAt.toMillis() - start;
             const toMs = c.toStoppedAt.toMillis() - start;
-            // Premier qui stoppe gagne
+            // Celui qui tient le plus longtemps gagne (dernier à stopper)
             let winnerUid = 'draw';
-            if (fromMs < toMs) winnerUid = fresh.fromUid;
-            else if (toMs < fromMs) winnerUid = fresh.toUid;
+            if (fromMs > toMs) winnerUid = fresh.fromUid;
+            else if (toMs > fromMs) winnerUid = fresh.toUid;
             await db.collection('challenges').doc(challengeId).update({
               status: 'completed', winnerUid,
               resultText: `${(fromMs/1000).toFixed(1)}s vs ${(toMs/1000).toFixed(1)}s`,
