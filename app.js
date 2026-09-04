@@ -359,7 +359,27 @@
     }
   });
 
+  document.getElementById('forgotPasswordBtn').addEventListener('click', async () => {
+    const email = document.getElementById('loginEmail').value.trim();
+    const flashEl = document.getElementById('loginFlash');
+    if (!email) {
+      flashEl.textContent = 'Entrez votre email ci-dessus, puis cliquez à nouveau ici.';
+      return;
+    }
+    try {
+      flashEl.textContent = 'Envoi en cours…';
+      await auth.sendPasswordResetEmail(email);
+      flashEl.textContent = 'Email envoyé ! Vérifiez votre boîte de réception (et les spams).';
+    } catch (err) {
+      flashEl.textContent = err.code === 'auth/user-not-found'
+        ? 'Aucun compte avec cet email.'
+        : (err.message || 'Erreur lors de l\'envoi.');
+    }
+  });
+
   document.getElementById('logoutBtn').addEventListener('click', async () => {
+    const ok = confirm("Voulez-vous vraiment vous déconnecter ?");
+    if (!ok) return;
     try {
       await auth.signOut();
       setAuthStatus('Déconnecté — données locales', null);

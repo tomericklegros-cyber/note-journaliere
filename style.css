@@ -1286,6 +1286,22 @@
     height: 1px;
     background: var(--line);
   }
+
+  .forgot-password-link {
+    display: block;
+    width: 100%;
+    text-align: center;
+    background: none;
+    border: none;
+    color: var(--purple);
+    font-size: 12px;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 6px 0 0;
+    margin-top: 2px;
+  }
+  .forgot-password-link:hover { color: var(--purple-soft); }
+
   .google-btn {
     display: flex;
     align-items: center;
