@@ -1927,3 +1927,39 @@
 }
 .profile-howto li { margin-bottom: 4px; }
 .profile-howto b { color: var(--ink); }
+
+.cal-detail-exos {
+  margin: 10px 0 14px;
+}
+.cal-exos-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.cal-exos-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--stone-dark);
+  overflow: hidden;
+}
+.cal-exos-list li {
+  padding: 10px 12px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--line);
+}
+.cal-exos-list li:last-child { border-bottom: none; }
+.cal-exo-pts {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+.cal-exos-empty {
+  font-size: 12px;
+  color: var(--ink-soft);
+  padding: 8px 0;
+}

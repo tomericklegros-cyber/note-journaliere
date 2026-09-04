@@ -56,6 +56,7 @@
       loggedIn.style.display = 'none';
       setAuthStatus('Données locales uniquement', null);
     }
+    if (typeof updateAdminButtonVisibility === 'function') updateAdminButtonVisibility();
   }
 
   function normalizePseudo(raw) {
@@ -1040,11 +1041,38 @@
     }
   }
 
+  function exercisesForDay(dayKey) {
+    // Aujourd'hui = exercices en cours
+    if (dayKey === state.dayKey) {
+      return (state.exercises || [])
+        .filter(ex => (ex.value || 0) > 0)
+        .map(ex => ({
+          name: ex.name,
+          value: ex.value,
+          unit: ex.unit || '',
+          points: Math.round((ex.value || 0) * (ex.points || 0) * 10) / 10
+        }));
+    }
+    const h = (state.history || []).find(x => x.day === dayKey);
+    if (!h || !h.byExercise) return [];
+    return Object.keys(h.byExercise).map(id => {
+      const rec = h.byExercise[id];
+      if (!rec || !(rec.value > 0)) return null;
+      return {
+        name: rec.name || id,
+        value: rec.value,
+        unit: rec.unit || '',
+        points: null
+      };
+    }).filter(Boolean);
+  }
+
   function selectCalDay(key) {
     calSelectedKey = key;
     renderCalendar();
     const title = document.getElementById('calDetailTitle');
     const scoreEl = document.getElementById('calDetailScore');
+    const exosEl = document.getElementById('calDetailExos');
     const noteInput = document.getElementById('calNoteInput');
     const flash = document.getElementById('calFlash');
     if (flash) flash.textContent = '';
@@ -1059,10 +1087,31 @@
         ? `Score du jour (en cours) : ${sc} pts — objectif ${state.dailyGoal} pts`
         : `Aujourd’hui — pas encore de points (objectif ${state.dailyGoal} pts)`;
     } else if (sc !== null && sc > 0) {
-      scoreEl.textContent = `Score : ${sc} pts`;
+      const h = (state.history || []).find(x => x.day === key);
+      const rankName = h && h.rank && h.rank.name ? h.rank.name : '';
+      scoreEl.textContent = rankName ? `Score : ${sc} pts · ${rankName}` : `Score : ${sc} pts`;
     } else {
       scoreEl.textContent = 'Aucun score enregistré ce jour-là';
     }
+
+    // Détail des exercices faits ce jour-là
+    if (exosEl) {
+      const list = exercisesForDay(key);
+      if (!list.length) {
+        exosEl.innerHTML = '<div class="cal-exos-empty">Aucun exercice enregistré ce jour.</div>';
+      } else {
+        exosEl.innerHTML = '<div class="cal-exos-title">Séance du jour</div><ul class="cal-exos-list">' +
+          list.map(ex => {
+            const val = (typeof ex.value === 'number' && ex.value % 1 !== 0)
+              ? ex.value.toFixed(1)
+              : String(ex.value);
+            const pts = ex.points != null ? ` <span class="cal-exo-pts">(${ex.points} pts)</span>` : '';
+            return `<li><strong>${escapeHtml(ex.name)}</strong> — ${escapeHtml(val)} ${escapeHtml(ex.unit || '')}${pts}</li>`;
+          }).join('') +
+          '</ul>';
+      }
+    }
+
     noteInput.value = (state.dayNotes && state.dayNotes[key]) || '';
   }
 
@@ -1980,45 +2029,47 @@
   document.getElementById('themeDarkBtn').addEventListener('click', () => applyTheme('dark'));
   document.getElementById('themeLightBtn').addEventListener('click', () => applyTheme('light'));
 
-  /* ---- ADMIN MODE ---- */
-  const ADMIN_CODE = "Bassin*";
+  /* ---- ADMIN MODE (email only, no secret code) ---- */
+  const ADMIN_EMAIL = 'tomericklegros@gmail.com';
+
+  function isAdminUser() {
+    const email = (currentUser && currentUser.email) ? currentUser.email.toLowerCase().trim() : '';
+    return email === ADMIN_EMAIL;
+  }
+
+  function updateAdminButtonVisibility() {
+    const btn = document.getElementById('adminBtn');
+    if (!btn) return;
+    btn.style.display = isAdminUser() ? 'block' : 'none';
+  }
 
   function buildAdminBadgeSelect() {
     const select = document.getElementById('adminBadgeSelect');
+    if (!select) return;
     const options = getBadges().concat([{ id: SECRET_BADGE.id, label: '💎 ' + SECRET_BADGE.label }]);
     select.innerHTML = options.map(b => `<option value="${b.id}">${escapeHtml(b.label)}</option>`).join('');
   }
 
   function openAdminPanel() {
+    if (!isAdminUser()) {
+      alert('Accès admin réservé.');
+      return;
+    }
     buildAdminBadgeSelect();
     document.getElementById('adminPanelOverlay').classList.add('open');
   }
 
   document.getElementById('adminBtn').addEventListener('click', () => {
-    document.getElementById('adminCodeInput').value = '';
-    document.getElementById('adminCodeFlash').textContent = '';
-    document.getElementById('adminCodeOverlay').classList.add('open');
-    setTimeout(() => document.getElementById('adminCodeInput').focus(), 100);
-  });
-
-  document.getElementById('adminCodeCancel').addEventListener('click', () => {
-    document.getElementById('adminCodeOverlay').classList.remove('open');
-  });
-  document.getElementById('adminCodeOverlay').addEventListener('click', (e) => {
-    if (e.target.id === 'adminCodeOverlay') document.getElementById('adminCodeOverlay').classList.remove('open');
-  });
-
-  document.getElementById('adminCodeSubmit').addEventListener('click', () => {
-    const val = document.getElementById('adminCodeInput').value;
-    if (val === ADMIN_CODE) {
-      document.getElementById('adminCodeOverlay').classList.remove('open');
-      openAdminPanel();
-    } else {
-      document.getElementById('adminCodeFlash').textContent = 'Code incorrect.';
+    if (!currentUser) {
+      alert('Connecte-toi avec le compte admin.');
+      openLoginModal();
+      return;
     }
-  });
-  document.getElementById('adminCodeInput').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') document.getElementById('adminCodeSubmit').click();
+    if (!isAdminUser()) {
+      alert('Accès refusé.');
+      return;
+    }
+    openAdminPanel();
   });
 
   document.getElementById('adminPanelClose').addEventListener('click', () => {
@@ -2027,6 +2078,9 @@
   document.getElementById('adminPanelOverlay').addEventListener('click', (e) => {
     if (e.target.id === 'adminPanelOverlay') document.getElementById('adminPanelOverlay').classList.remove('open');
   });
+
+  // Masque le bouton admin par défaut
+  updateAdminButtonVisibility();
 
   document.getElementById('adminGrantBadgeBtn').addEventListener('click', () => {
     const id = document.getElementById('adminBadgeSelect').value;
@@ -2590,7 +2644,15 @@
       data.goalPoints = g;
     }
     if (type === 'chrono') {
-      data.chrono = { startedAt: null, fromStoppedAt: null, toStoppedAt: null, fromMs: null, toMs: null };
+      data.chrono = {
+        startedAt: null,
+        fromReady: false,
+        toReady: false,
+        fromStoppedAt: null,
+        toStoppedAt: null,
+        fromMs: null,
+        toMs: null
+      };
     }
 
     try {
@@ -2637,13 +2699,22 @@
 
       let statusLine = '';
       if (ch.status === 'pending') statusLine = isFromMe ? 'En attente de @' + other : '@' + other + ' t’a défié';
-      if (ch.status === 'active') statusLine = 'En cours vs @' + other;
+      if (ch.status === 'active') {
+        statusLine = 'En cours vs @' + other;
+        if (ch.type === 'score_day' || ch.type === 'exercise' || ch.type === 'goal') {
+          const mySc = isFromMe ? ch.fromScore : ch.toScore;
+          const theirSc = isFromMe ? ch.toScore : ch.fromScore;
+          const myTxt = typeof mySc === 'number' ? mySc : 'pas encore';
+          const theirTxt = typeof theirSc === 'number' ? theirSc : 'pas encore';
+          statusLine += ` · Toi: ${myTxt} · Adversaire: ${theirTxt}`;
+        }
+      }
       if (ch.status === 'declined') statusLine = 'Refusé';
       if (ch.status === 'cancelled') statusLine = 'Annulé';
       if (ch.status === 'completed') {
         if (ch.winnerUid === currentUser.uid) statusLine = '🏆 Tu as gagné vs @' + other;
         else if (ch.winnerUid === 'draw') statusLine = 'Égalité avec @' + other;
-        else statusLine = 'Perdu contre @' + other;
+        else statusLine = '❌ Perdu contre @' + other;
         if (ch.resultText) statusLine += ' — ' + ch.resultText;
       }
 
@@ -2656,20 +2727,48 @@
         actions = `<button type="button" class="danger" data-ch-cancel="${ch.id}">Annuler</button>`;
       }
       if (ch.status === 'active' && (ch.type === 'score_day' || ch.type === 'exercise' || ch.type === 'goal')) {
-        actions = `<button type="button" class="primary" data-ch-resolve="${ch.id}">Clôturer / comparer</button>`;
+        const mySc = isFromMe ? ch.fromScore : ch.toScore;
+        const btnLabel = typeof mySc === 'number'
+          ? 'Mettre à jour mon score (' + mySc + ')'
+          : 'Envoyer mon score';
+        actions = `<button type="button" class="primary" data-ch-resolve="${ch.id}">${btnLabel}</button>`;
       }
       if (ch.status === 'active' && ch.type === 'chrono') {
-        actions = `<button type="button" class="primary" data-ch-chrono="${ch.id}">Ouvrir le chrono</button>`;
+        actions = `<button type="button" class="primary" data-ch-chrono="${ch.id}">${activeChronoChallengeId === ch.id ? 'Chrono ouvert' : 'Ouvrir le chrono'}</button>`;
       }
 
       let chronoHtml = '';
-      if (ch.status === 'active' && ch.type === 'chrono' && activeChronoChallengeId === ch.id) {
+      if ((ch.status === 'active' || ch.status === 'completed') && ch.type === 'chrono' && activeChronoChallengeId === ch.id) {
+        const c = ch.chrono || {};
+        const isFrom = ch.fromUid === currentUser.uid;
+        const myReady = isFrom ? !!c.fromReady : !!c.toReady;
+        const theirReady = isFrom ? !!c.toReady : !!c.fromReady;
+        const myStopped = isFrom ? c.fromStoppedAt : c.toStoppedAt;
+        const theirStopped = isFrom ? c.toStoppedAt : c.fromStoppedAt;
+        const started = !!(c.startedAt);
+        let statusTxt = 'Appuie sur « Je suis prêt »';
+        if (started && !myStopped) statusTxt = 'Chrono en cours — stop quand tu veux';
+        else if (started && myStopped && !theirStopped) statusTxt = 'Tu as stoppé — en attente de l’autre…';
+        else if (ch.status === 'completed') {
+          if (ch.winnerUid === currentUser.uid) statusTxt = '🏆 Tu as gagné !';
+          else if (ch.winnerUid === 'draw') statusTxt = 'Égalité';
+          else statusTxt = 'Tu as perdu';
+          if (ch.resultText) statusTxt += ' — ' + ch.resultText;
+        } else if (myReady && !theirReady) statusTxt = 'En attente que l’autre soit prêt…';
+        else if (!myReady && theirReady) statusTxt = 'L’autre est prêt — à toi !';
+        else if (myReady && theirReady && !started) statusTxt = 'Les deux prêts — démarrage…';
+
         chronoHtml = `<div class="chrono-box" id="chronoBox">
-          <div class="chrono-status" id="chronoStatus">Prêt</div>
+          <div class="chrono-status" id="chronoStatus">${escapeHtml(statusTxt)}</div>
           <div class="chrono-time" id="chronoTime">00:00.0</div>
-          <div class="cactions" style="justify-content:center;">
-            <button type="button" class="primary" id="chronoStartBtn">Démarrer</button>
-            <button type="button" class="danger" id="chronoStopBtn">Stop</button>
+          <div class="chrono-meta" id="chronoMeta" style="font-size:11px;color:var(--ink-soft);margin:6px 0;">
+            Toi : ${myReady ? (myStopped ? 'stoppé' : (started ? 'en course' : 'prêt')) : 'pas prêt'}
+            · Adversaire : ${theirReady ? (theirStopped ? 'stoppé' : (started ? 'en course' : 'prêt')) : 'pas prêt'}
+          </div>
+          <div class="cactions" style="justify-content:center;flex-wrap:wrap;">
+            ${ch.status === 'active' && !started ? `<button type="button" class="primary" id="chronoReadyBtn">${myReady ? 'Prêt ✓' : 'Je suis prêt'}</button>` : ''}
+            ${ch.status === 'active' && started && !myStopped ? `<button type="button" class="danger" id="chronoStopBtn">STOP</button>` : ''}
+            ${ch.status === 'active' && started && myStopped ? `<button type="button" class="primary" disabled>En attente…</button>` : ''}
           </div>
         </div>`;
       }
@@ -2690,8 +2789,10 @@
     list.querySelectorAll('[data-ch-chrono]').forEach(b => b.addEventListener('click', () => {
       activeChronoChallengeId = b.dataset.chChrono;
       renderChallengesList();
-      setupChronoHandlers(b.dataset.chChrono);
     }));
+
+    // Rebranche les boutons chrono après chaque re-render
+    if (activeChronoChallengeId) setupChronoHandlers(activeChronoChallengeId);
   }
 
   function loadChallenges() {
@@ -2727,10 +2828,19 @@
   async function resolveChallenge(id) {
     const ch = cachedChallenges[id];
     if (!ch || !currentUser) return;
+    if (ch.status !== 'active') {
+      socialFlash('Ce défi n’est plus actif.', 'err');
+      return;
+    }
     const isFrom = ch.fromUid === currentUser.uid;
-    let myVal = 0, label = '';
-    if (ch.type === 'score_day' || ch.type === 'goal') { myVal = myScoreToday(); label = 'pts'; }
-    else if (ch.type === 'exercise') { myVal = myExerciseValue(ch.exerciseId); label = ch.exerciseUnit || ''; }
+    let myVal = 0, label = 'pts';
+    if (ch.type === 'score_day' || ch.type === 'goal') {
+      myVal = myScoreToday();
+      label = 'pts';
+    } else if (ch.type === 'exercise') {
+      myVal = myExerciseValue(ch.exerciseId);
+      label = ch.exerciseUnit || '';
+    }
 
     const field = isFrom ? 'fromScore' : 'toScore';
     try {
@@ -2738,112 +2848,171 @@
         [field]: myVal,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       });
+      // Relecture fraîche pour éviter les courses
       const snap = await db.collection('challenges').doc(id).get();
-      const fresh = snap.data();
+      const fresh = snap.data() || {};
       const fromScore = typeof fresh.fromScore === 'number' ? fresh.fromScore : null;
       const toScore = typeof fresh.toScore === 'number' ? fresh.toScore : null;
+
       if (fromScore === null || toScore === null) {
-        socialFlash('Score enregistré. En attente de l’autre…', 'ok');
+        socialFlash(
+          'Ton score (' + myVal + ' ' + label + ') est enregistré. L’autre doit aussi appuyer sur « Envoyer mon score ».',
+          'ok'
+        );
         return;
       }
+
       let winnerUid = 'draw';
-      let resultText = fromScore + ' vs ' + toScore + ' ' + label;
+      let resultText = fromScore + ' vs ' + toScore + (label ? ' ' + label : '');
       if (ch.type === 'goal') {
-        const fromOk = fromScore >= (ch.goalPoints || 0);
-        const toOk = toScore >= (ch.goalPoints || 0);
+        const goal = ch.goalPoints || 0;
+        const fromOk = fromScore >= goal;
+        const toOk = toScore >= goal;
         if (fromOk && !toOk) winnerUid = ch.fromUid;
         else if (toOk && !fromOk) winnerUid = ch.toUid;
         else if (fromOk && toOk) {
           if (fromScore > toScore) winnerUid = ch.fromUid;
           else if (toScore > fromScore) winnerUid = ch.toUid;
+        } else {
+          // personne n'a atteint l'objectif
+          winnerUid = 'draw';
         }
-        resultText = `objectif ${ch.goalPoints} — ${fromScore} vs ${toScore}`;
+        resultText = 'objectif ' + goal + ' — ' + fromScore + ' vs ' + toScore;
       } else {
         if (fromScore > toScore) winnerUid = ch.fromUid;
         else if (toScore > fromScore) winnerUid = ch.toUid;
       }
+
+      // Évite double-clôture si l'autre a déjà terminé
+      if (fresh.status === 'completed') {
+        socialFlash('Défi déjà terminé.', 'ok');
+        return;
+      }
+
       await db.collection('challenges').doc(id).update({
-        status: 'completed', winnerUid, resultText,
+        status: 'completed',
+        winnerUid,
+        resultText,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       });
-      tryClaimChallengeXp({ id, status: 'completed', winnerUid, fromUid: ch.fromUid, toUid: ch.toUid });
-      socialFlash('Défi terminé !', 'ok');
+      tryClaimChallengeXp({
+        id,
+        status: 'completed',
+        winnerUid,
+        fromUid: ch.fromUid,
+        toUid: ch.toUid
+      });
+      if (winnerUid === currentUser.uid) socialFlash('🏆 Tu as gagné ! ' + resultText, 'ok');
+      else if (winnerUid === 'draw') socialFlash('Égalité — ' + resultText, 'ok');
+      else socialFlash('Perdu — ' + resultText, 'err');
     } catch (e) {
       console.error(e);
-      socialFlash('Erreur clôture', 'err');
+      socialFlash('Erreur : ' + (e.message || 'clôture impossible'), 'err');
+    }
+  }
+
+  async function tryStartChronoIfBothReady(challengeId) {
+    const snap = await db.collection('challenges').doc(challengeId).get();
+    if (!snap.exists) return;
+    const ch = snap.data();
+    const c = ch.chrono || {};
+    if (c.startedAt) return;
+    if (c.fromReady && c.toReady) {
+      await db.collection('challenges').doc(challengeId).update({
+        'chrono.startedAt': firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
     }
   }
 
   function setupChronoHandlers(challengeId) {
-    const startBtn = document.getElementById('chronoStartBtn');
+    const readyBtn = document.getElementById('chronoReadyBtn');
     const stopBtn = document.getElementById('chronoStopBtn');
-    if (!startBtn || !stopBtn) return;
 
-    startBtn.onclick = async () => {
-      try {
-        await db.collection('challenges').doc(challengeId).update({
-          'chrono.startedAt': firebase.firestore.FieldValue.serverTimestamp(),
-          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-      } catch (e) { socialFlash('Erreur démarrage chrono', 'err'); }
-    };
-
-    stopBtn.onclick = async () => {
-      const ch = cachedChallenges[challengeId];
-      if (!ch || !ch.chrono || !ch.chrono.startedAt) {
-        socialFlash('Le chrono n’a pas encore démarré', 'err');
-        return;
-      }
-      const isFrom = ch.fromUid === currentUser.uid;
-      const fieldStopped = isFrom ? 'chrono.fromStoppedAt' : 'chrono.toStoppedAt';
-      try {
-        await db.collection('challenges').doc(challengeId).update({
-          [fieldStopped]: firebase.firestore.FieldValue.serverTimestamp(),
-          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        const snap = await db.collection('challenges').doc(challengeId).get();
-        const fresh = snap.data();
-        const c = fresh.chrono || {};
-        if (c.startedAt && c.fromStoppedAt && c.toStoppedAt) {
-          const start = c.startedAt.toMillis();
-          const fromMs = c.fromStoppedAt.toMillis() - start;
-          const toMs = c.toStoppedAt.toMillis() - start;
-          let winnerUid = 'draw';
-          if (fromMs < toMs) winnerUid = fresh.fromUid;
-          else if (toMs < fromMs) winnerUid = fresh.toUid;
+    if (readyBtn) {
+      readyBtn.onclick = async () => {
+        const ch = cachedChallenges[challengeId];
+        if (!ch || !currentUser) return;
+        const isFrom = ch.fromUid === currentUser.uid;
+        const field = isFrom ? 'chrono.fromReady' : 'chrono.toReady';
+        try {
           await db.collection('challenges').doc(challengeId).update({
-            status: 'completed', winnerUid,
-            resultText: `chrono ${(fromMs/1000).toFixed(1)}s vs ${(toMs/1000).toFixed(1)}s`,
-            'chrono.fromMs': fromMs, 'chrono.toMs': toMs,
+            [field]: true,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
           });
-          tryClaimChallengeXp({
-            id: challengeId, status: 'completed', winnerUid,
-            fromUid: fresh.fromUid, toUid: fresh.toUid
-          });
-          socialFlash('Chrono terminé !', 'ok');
-        } else {
-          socialFlash('Stop enregistré — en attente de l’autre', 'ok');
+          await tryStartChronoIfBothReady(challengeId);
+          socialFlash('Tu es prêt !', 'ok');
+        } catch (e) {
+          console.error(e);
+          socialFlash('Erreur prêt', 'err');
         }
-      } catch (e) {
-        console.error(e);
-        socialFlash('Erreur stop', 'err');
-      }
-    };
+      };
+    }
+
+    if (stopBtn) {
+      stopBtn.onclick = async () => {
+        const ch = cachedChallenges[challengeId];
+        if (!ch || !ch.chrono || !ch.chrono.startedAt) {
+          socialFlash('Le chrono n’a pas encore démarré', 'err');
+          return;
+        }
+        const isFrom = ch.fromUid === currentUser.uid;
+        const myAlready = isFrom ? ch.chrono.fromStoppedAt : ch.chrono.toStoppedAt;
+        if (myAlready) {
+          socialFlash('Tu as déjà stoppé', 'ok');
+          return;
+        }
+        const fieldStopped = isFrom ? 'chrono.fromStoppedAt' : 'chrono.toStoppedAt';
+        try {
+          // Chaque joueur peut toujours stopper de son côté
+          await db.collection('challenges').doc(challengeId).update({
+            [fieldStopped]: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          const snap = await db.collection('challenges').doc(challengeId).get();
+          const fresh = snap.data();
+          const c = fresh.chrono || {};
+          if (c.startedAt && c.fromStoppedAt && c.toStoppedAt) {
+            const start = c.startedAt.toMillis();
+            const fromMs = c.fromStoppedAt.toMillis() - start;
+            const toMs = c.toStoppedAt.toMillis() - start;
+            // Premier qui stoppe gagne
+            let winnerUid = 'draw';
+            if (fromMs < toMs) winnerUid = fresh.fromUid;
+            else if (toMs < fromMs) winnerUid = fresh.toUid;
+            await db.collection('challenges').doc(challengeId).update({
+              status: 'completed', winnerUid,
+              resultText: `${(fromMs/1000).toFixed(1)}s vs ${(toMs/1000).toFixed(1)}s`,
+              'chrono.fromMs': fromMs, 'chrono.toMs': toMs,
+              updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            tryClaimChallengeXp({
+              id: challengeId, status: 'completed', winnerUid,
+              fromUid: fresh.fromUid, toUid: fresh.toUid
+            });
+            const iWon = winnerUid === currentUser.uid;
+            socialFlash(iWon ? '🏆 Tu as gagné le chrono !' : (winnerUid === 'draw' ? 'Égalité' : 'Perdu…'), iWon ? 'ok' : 'err');
+          } else {
+            socialFlash('Stop OK — l’autre peut encore stopper de son côté', 'ok');
+          }
+        } catch (e) {
+          console.error(e);
+          socialFlash('Erreur stop (réessaie)', 'err');
+        }
+      };
+    }
 
     if (chronoTickTimer) clearInterval(chronoTickTimer);
     chronoTickTimer = setInterval(() => {
       const ch = cachedChallenges[challengeId];
       const timeEl = document.getElementById('chronoTime');
-      const statusEl = document.getElementById('chronoStatus');
       if (!ch || !timeEl) return;
       const c = ch.chrono || {};
-      if (!c.startedAt) {
+      if (!c.startedAt || !c.startedAt.toMillis) {
         timeEl.textContent = '00:00.0';
-        if (statusEl) statusEl.textContent = 'En attente du démarrage…';
         return;
       }
-      const start = c.startedAt.toMillis ? c.startedAt.toMillis() : Date.now();
+      const start = c.startedAt.toMillis();
       const isFrom = ch.fromUid === currentUser.uid;
       const myStopped = isFrom ? c.fromStoppedAt : c.toStoppedAt;
       const end = myStopped && myStopped.toMillis ? myStopped.toMillis() : Date.now();
@@ -2852,7 +3021,6 @@
       const m = Math.floor(s / 60);
       const ds = Math.floor((ms % 1000) / 100);
       timeEl.textContent = String(m).padStart(2,'0') + ':' + String(s % 60).padStart(2,'0') + '.' + ds;
-      if (statusEl) statusEl.textContent = myStopped ? 'Tu as stoppé — en attente de l’autre…' : 'Chrono en cours !';
     }, 100);
   }
 

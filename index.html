@@ -147,7 +147,11 @@
 
     <!-- DÉFIS -->
     <div class="social-section" id="social-defis">
-      <div class="social-hint">Défie un ami : score du jour, un exercice, un objectif, ou un chrono duel.</div>
+      <div class="social-hint">
+        Défie un ami (score, exercice, objectif ou chrono).<br>
+        <strong>Score / exercice / objectif :</strong> les deux appuient sur « Envoyer mon score » pour comparer.<br>
+        <strong>Chrono :</strong> les deux « Je suis prêt », puis chacun STOP de son côté.
+      </div>
 
       <div class="challenge-create" id="challengeCreateBox">
         <div class="settings-field" style="margin-bottom:8px;">
@@ -470,6 +474,7 @@
         <div class="cal-detail" id="calDetail">
           <div class="cal-detail-title" id="calDetailTitle">Sélectionne un jour</div>
           <div class="cal-detail-score" id="calDetailScore"></div>
+          <div class="cal-detail-exos" id="calDetailExos"></div>
           <label class="cal-note-label">Note de séance</label>
           <textarea id="calNoteInput" rows="3" placeholder="Comment s’est passée la séance ?" maxlength="500"></textarea>
           <button type="button" class="auth-btn primary" id="calSaveNoteBtn" style="margin-top:10px;">Enregistrer la note</button>
@@ -497,31 +502,16 @@
   </footer>
 
   <div style="text-align: center; margin-top: 24px;">
-    <button type="button" class="ghost-btn" id="adminBtn" style="max-width: 160px; margin: 0 auto; opacity: 0.5;">🔧 Admin</button>
+    <button type="button" class="ghost-btn" id="adminBtn" style="max-width: 160px; margin: 0 auto; opacity: 0.5; display: none;">🔧 Admin</button>
   </div>
 
 </div>
-</div>
-
-<div class="modal-overlay" id="adminCodeOverlay">
-  <div class="modal-panel" style="max-width: 360px;">
-    <h2>Accès admin</h2>
-    <div class="modal-sub">Entrez le code pour accéder aux outils de test.</div>
-    <div class="settings-field">
-      <input type="password" id="adminCodeInput" placeholder="Code admin">
-    </div>
-    <div class="flash" id="adminCodeFlash"></div>
-    <div class="modal-actions">
-      <button class="cancel-btn" id="adminCodeCancel">Annuler</button>
-      <button class="save-btn" id="adminCodeSubmit">Valider</button>
-    </div>
-  </div>
 </div>
 
 <div class="modal-overlay" id="adminPanelOverlay">
   <div class="modal-panel">
     <h2>🔧 Mode admin</h2>
-    <div class="modal-sub">Débloquez des badges ou testez les animations, sans attendre de les mériter.</div>
+    <div class="modal-sub">Réservé au compte admin. Outils de test et reset.</div>
 
     <div class="modal-section-title">Débloquer un badge précis</div>
     <div class="theme-switch-row" style="margin-bottom: 16px;">
