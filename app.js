@@ -3289,40 +3289,146 @@
     });
   });
 
-  /* ---- MESSAGERIE ---- */
+  /* ---- MESSAGERIE (DM + groupes) ---- */
   let messagesUnsub = null;
   let activeChatId = null;
-  let activeChatFriend = null; // { uid, pseudo }
+  let activeChatMeta = null; // { type:'dm'|'group', name, participants, pseudos }
+
+  const CHAT_PALETTE = ['#22C55E','#3B82F6','#F59E0B','#EC4899','#8B5CF6','#14B8A6','#EF4444','#06B6D4'];
 
   function chatIdFor(uidA, uidB) {
     return [uidA, uidB].sort().join('_');
   }
 
+  function colorForUid(uid) {
+    let h = 0;
+    const s = String(uid || '');
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    return CHAT_PALETTE[h % CHAT_PALETTE.length];
+  }
+
+  function formatChatDay(date) {
+    const d = date instanceof Date ? date : new Date(date);
+    const today = new Date();
+    const yday = new Date();
+    yday.setDate(today.getDate() - 1);
+    const same = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+    if (same(d, today)) return "Aujourd'hui";
+    if (same(d, yday)) return 'Hier';
+    return d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+  }
+
   function showChatList() {
     document.getElementById('chatListView').style.display = 'block';
     document.getElementById('chatThreadView').style.display = 'none';
+    document.getElementById('groupCreateView').style.display = 'none';
     if (messagesUnsub) { messagesUnsub(); messagesUnsub = null; }
     activeChatId = null;
-    activeChatFriend = null;
+    activeChatMeta = null;
+    renderConversationsList();
     renderChatFriendsList();
   }
 
-  function showChatThread(friend) {
-    activeChatFriend = friend;
-    activeChatId = chatIdFor(currentUser.uid, friend.uid);
+  function openChatThread(chatId, meta) {
+    activeChatId = chatId;
+    activeChatMeta = meta || { type: 'dm' };
     document.getElementById('chatListView').style.display = 'none';
+    document.getElementById('groupCreateView').style.display = 'none';
     const thread = document.getElementById('chatThreadView');
     thread.style.display = 'flex';
-    document.getElementById('chatThreadTitle').textContent = '@' + friend.pseudo;
+    const title = meta.type === 'group'
+      ? (meta.name || 'Groupe')
+      : ('@' + (meta.pseudo || 'ami'));
+    document.getElementById('chatThreadTitle').textContent = title;
+    const renameBtn = document.getElementById('chatRenameBtn');
+    renameBtn.style.display = meta.type === 'group' ? 'inline-flex' : 'none';
     document.getElementById('chatMessages').innerHTML = '<div class="social-empty">Chargement…</div>';
     document.getElementById('chatInput').value = '';
-    listenMessages(activeChatId);
+    listenMessages(chatId);
   }
 
-  async function renderChatFriendsList() {
+  function showChatThread(friend) {
+    openChatThread(chatIdFor(currentUser.uid, friend.uid), {
+      type: 'dm',
+      pseudo: friend.pseudo,
+      participants: [currentUser.uid, friend.uid],
+      pseudos: {
+        [currentUser.uid]: state.pseudo || '',
+        [friend.uid]: friend.pseudo || ''
+      }
+    });
+  }
+
+  async function renderConversationsList() {
     const list = document.getElementById('messagesList');
     if (!currentUser) {
       list.innerHTML = '<div class="social-empty">Connecte-toi pour discuter</div>';
+      return;
+    }
+    try {
+      const snap = await db.collection('conversations')
+        .where('participants', 'array-contains', currentUser.uid)
+        .limit(40)
+        .get();
+      if (snap.empty) {
+        list.innerHTML = '<div class="social-empty">Aucune conversation pour l’instant</div>';
+        return;
+      }
+      const rows = [];
+      snap.forEach(doc => rows.push({ id: doc.id, ...doc.data() }));
+      rows.sort((a, b) => {
+        const ta = a.updatedAt && a.updatedAt.toMillis ? a.updatedAt.toMillis() : 0;
+        const tb = b.updatedAt && b.updatedAt.toMillis ? b.updatedAt.toMillis() : 0;
+        return tb - ta;
+      });
+      list.innerHTML = '';
+      rows.forEach(c => {
+        const isGroup = c.type === 'group';
+        let title = c.name || 'Groupe';
+        if (!isGroup) {
+          const other = (c.participants || []).find(u => u !== currentUser.uid);
+          title = '@' + ((c.pseudos && c.pseudos[other]) || other || 'ami');
+        }
+        let when = '';
+        if (c.updatedAt && c.updatedAt.toDate) when = formatChatDay(c.updatedAt.toDate());
+        const card = document.createElement('div');
+        card.className = 'friend-card chatable conv-card';
+        card.innerHTML = `
+          <div class="conv-avatar ${isGroup ? 'group' : ''}">${isGroup ? '👥' : title.slice(1,2).toUpperCase()}</div>
+          <div class="conv-body">
+            <div class="fname">${escapeHtml(title)}</div>
+            <div class="fmeta">${escapeHtml((c.lastMessage || 'Nouvelle conversation').slice(0, 48))}</div>
+          </div>
+          <div class="conv-date">${escapeHtml(when)}</div>`;
+        card.addEventListener('click', () => {
+          if (isGroup) {
+            openChatThread(c.id, {
+              type: 'group',
+              name: c.name || 'Groupe',
+              participants: c.participants || [],
+              pseudos: c.pseudos || {}
+            });
+          } else {
+            const other = (c.participants || []).find(u => u !== currentUser.uid);
+            showChatThread({
+              uid: other,
+              pseudo: (c.pseudos && c.pseudos[other]) || other
+            });
+          }
+        });
+        list.appendChild(card);
+      });
+    } catch (e) {
+      console.error(e);
+      list.innerHTML = '<div class="social-empty">Erreur conversations (index Firestore ?)</div>';
+    }
+  }
+
+  async function renderChatFriendsList() {
+    const list = document.getElementById('messagesFriendsList');
+    if (!list) return;
+    if (!currentUser) {
+      list.innerHTML = '<div class="social-empty">Connecte-toi</div>';
       return;
     }
     try {
@@ -3339,13 +3445,12 @@
         card.innerHTML = `
           <div>
             <div class="fname">@${escapeHtml(f.pseudo || doc.id)}</div>
-            <div class="fmeta">Appuyer pour discuter</div>
+            <div class="fmeta">Message privé</div>
           </div>
           <div class="friend-actions">
-            <button type="button" class="primary">Message</button>
+            <button type="button" class="primary">Écrire</button>
           </div>`;
-        const open = () => showChatThread({ uid: doc.id, pseudo: f.pseudo || doc.id });
-        card.addEventListener('click', open);
+        card.addEventListener('click', () => showChatThread({ uid: doc.id, pseudo: f.pseudo || doc.id }));
         list.appendChild(card);
       });
     } catch (e) {
@@ -3357,26 +3462,52 @@
   function listenMessages(chatId) {
     if (messagesUnsub) { messagesUnsub(); messagesUnsub = null; }
     const box = document.getElementById('chatMessages');
+    const isGroup = activeChatMeta && activeChatMeta.type === 'group';
     messagesUnsub = db.collection('conversations').doc(chatId).collection('messages')
       .orderBy('createdAt', 'asc')
-      .limitToLast(100)
+      .limitToLast(120)
       .onSnapshot(snap => {
         if (snap.empty) {
           box.innerHTML = '<div class="social-empty">Aucun message — dis bonjour 👋</div>';
           return;
         }
         box.innerHTML = '';
+        let lastDayKey = '';
         snap.forEach(doc => {
           const m = doc.data();
           const mine = m.from === currentUser.uid;
-          const div = document.createElement('div');
-          div.className = 'chat-bubble ' + (mine ? 'me' : 'them');
-          let time = '';
-          if (m.createdAt && m.createdAt.toDate) {
-            time = m.createdAt.toDate().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+          let d = null;
+          if (m.createdAt && m.createdAt.toDate) d = m.createdAt.toDate();
+          if (d) {
+            const key = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate();
+            if (key !== lastDayKey) {
+              lastDayKey = key;
+              const sep = document.createElement('div');
+              sep.className = 'chat-day-sep';
+              sep.textContent = formatChatDay(d);
+              box.appendChild(sep);
+            }
           }
-          div.innerHTML = `${escapeHtml(m.text || '')}<span class="ctime">${time}</span>`;
-          box.appendChild(div);
+          const wrap = document.createElement('div');
+          wrap.className = 'chat-row ' + (mine ? 'me' : 'them');
+          const bubble = document.createElement('div');
+          bubble.className = 'chat-bubble ' + (mine ? 'me' : 'them');
+          if (!mine && isGroup) {
+            const col = colorForUid(m.from);
+            bubble.style.borderLeft = '3px solid ' + col;
+            bubble.style.background = col + '22';
+          }
+          let time = '';
+          if (d) time = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+          const pseudo = m.fromPseudo ||
+            (activeChatMeta && activeChatMeta.pseudos && activeChatMeta.pseudos[m.from]) ||
+            '';
+          const nameHtml = (!mine && isGroup && pseudo)
+            ? `<div class="cname" style="color:${colorForUid(m.from)}">${escapeHtml(pseudo)}</div>`
+            : (!mine && pseudo ? `<div class="cname">${escapeHtml(pseudo)}</div>` : '');
+          bubble.innerHTML = `${nameHtml}${escapeHtml(m.text || '')}<span class="ctime">${time}</span>`;
+          wrap.appendChild(bubble);
+          box.appendChild(wrap);
         });
         box.scrollTop = box.scrollHeight;
       }, err => {
@@ -3386,7 +3517,7 @@
   }
 
   async function sendChatMessage() {
-    if (!currentUser || !activeChatId || !activeChatFriend) return;
+    if (!currentUser || !activeChatId || !activeChatMeta) return;
     const input = document.getElementById('chatInput');
     const text = (input.value || '').trim();
     if (!text) return;
@@ -3395,26 +3526,123 @@
       const convRef = db.collection('conversations').doc(activeChatId);
       const msgRef = convRef.collection('messages').doc();
       const batch = db.batch();
-      batch.set(convRef, {
-        participants: [currentUser.uid, activeChatFriend.uid].sort(),
-        pseudos: {
-          [currentUser.uid]: state.pseudo || '',
-          [activeChatFriend.uid]: activeChatFriend.pseudo || ''
-        },
+      const participants = (activeChatMeta.participants || []).slice().sort();
+      const pseudos = Object.assign({}, activeChatMeta.pseudos || {}, {
+        [currentUser.uid]: state.pseudo || ''
+      });
+      const payload = {
+        type: activeChatMeta.type || 'dm',
+        participants,
+        pseudos,
         lastMessage: text.slice(0, 120),
         lastFrom: currentUser.uid,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-      }, { merge: true });
+      };
+      if (activeChatMeta.type === 'group') payload.name = activeChatMeta.name || 'Groupe';
+      batch.set(convRef, payload, { merge: true });
       batch.set(msgRef, {
         from: currentUser.uid,
+        fromPseudo: state.pseudo || '',
         text: text.slice(0, 500),
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       });
       await batch.commit();
-      logEvent('message_sent');
+      logEvent('message_sent', { type: activeChatMeta.type || 'dm' });
     } catch (e) {
       console.error(e);
       socialFlash('Impossible d’envoyer le message', 'err');
+    }
+  }
+
+  async function openGroupCreate() {
+    document.getElementById('chatListView').style.display = 'none';
+    document.getElementById('chatThreadView').style.display = 'none';
+    document.getElementById('groupCreateView').style.display = 'block';
+    document.getElementById('groupNameInput').value = '';
+    const box = document.getElementById('groupMembersPick');
+    box.innerHTML = '<div class="social-empty">Chargement…</div>';
+    try {
+      const snap = await db.collection('users').doc(currentUser.uid).collection('friends').get();
+      if (snap.empty) {
+        box.innerHTML = '<div class="social-empty">Ajoute des amis avant de créer un groupe</div>';
+        return;
+      }
+      box.innerHTML = '';
+      snap.forEach(doc => {
+        const f = doc.data();
+        const row = document.createElement('label');
+        row.className = 'group-pick-row';
+        row.innerHTML = `
+          <input type="checkbox" value="${doc.id}" data-pseudo="${escapeHtml(f.pseudo || doc.id)}">
+          <span>@${escapeHtml(f.pseudo || doc.id)}</span>`;
+        box.appendChild(row);
+      });
+    } catch (e) {
+      console.error(e);
+      box.innerHTML = '<div class="social-empty">Erreur</div>';
+    }
+  }
+
+  async function createGroup() {
+    if (!currentUser) return;
+    const name = (document.getElementById('groupNameInput').value || '').trim().slice(0, 40);
+    if (name.length < 2) {
+      socialFlash('Nom de groupe trop court', 'err');
+      return;
+    }
+    const checks = Array.from(document.querySelectorAll('#groupMembersPick input[type=checkbox]:checked'));
+    if (!checks.length) {
+      socialFlash('Choisis au moins un ami', 'err');
+      return;
+    }
+    const participants = [currentUser.uid];
+    const pseudos = { [currentUser.uid]: state.pseudo || '' };
+    checks.forEach(c => {
+      participants.push(c.value);
+      pseudos[c.value] = c.getAttribute('data-pseudo') || c.value;
+    });
+    try {
+      const ref = db.collection('conversations').doc();
+      await ref.set({
+        type: 'group',
+        name,
+        participants,
+        pseudos,
+        createdBy: currentUser.uid,
+        lastMessage: 'Groupe créé',
+        lastFrom: currentUser.uid,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      socialFlash('Groupe « ' + name + ' » créé', 'ok');
+      openChatThread(ref.id, { type: 'group', name, participants, pseudos });
+      logEvent('group_created');
+    } catch (e) {
+      console.error(e);
+      socialFlash('Création impossible (règles Firestore ?)', 'err');
+    }
+  }
+
+  async function renameActiveGroup() {
+    if (!activeChatMeta || activeChatMeta.type !== 'group' || !activeChatId) return;
+    const next = prompt('Nouveau nom du groupe :', activeChatMeta.name || '');
+    if (next === null) return;
+    const name = next.trim().slice(0, 40);
+    if (name.length < 2) {
+      socialFlash('Nom trop court', 'err');
+      return;
+    }
+    try {
+      await db.collection('conversations').doc(activeChatId).update({
+        name,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      activeChatMeta.name = name;
+      document.getElementById('chatThreadTitle').textContent = name;
+      socialFlash('Groupe renommé', 'ok');
+    } catch (e) {
+      console.error(e);
+      socialFlash('Renommage impossible', 'err');
     }
   }
 
@@ -3423,6 +3651,10 @@
   document.getElementById('chatInput').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') sendChatMessage();
   });
+  document.getElementById('createGroupBtn')?.addEventListener('click', openGroupCreate);
+  document.getElementById('groupCreateCancel')?.addEventListener('click', showChatList);
+  document.getElementById('groupCreateConfirm')?.addEventListener('click', createGroup);
+  document.getElementById('chatRenameBtn')?.addEventListener('click', renameActiveGroup);
 
   // Quand on ouvre l'onglet Messages
   document.querySelectorAll('.social-tab').forEach(tab => {

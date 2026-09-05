@@ -231,18 +231,38 @@
     <!-- MESSAGES -->
     <div class="social-section" id="social-messages">
       <div id="chatListView">
-        <div class="social-hint">Choisis un ami pour discuter.</div>
-        <div id="messagesList"><div class="social-empty">Aucun ami pour le moment</div></div>
+        <div class="social-hint">Messages privés ou groupes avec tes amis.</div>
+        <button type="button" class="auth-btn primary" id="createGroupBtn" style="width:100%;margin-bottom:12px;">+ Créer un groupe</button>
+        <div class="modal-section-title">Conversations</div>
+        <div id="messagesList"><div class="social-empty">Aucune conversation</div></div>
+        <div class="modal-section-title" style="margin-top:14px;">Amis (nouveau message)</div>
+        <div id="messagesFriendsList"><div class="social-empty">Aucun ami</div></div>
       </div>
       <div id="chatThreadView" style="display:none; flex-direction:column; height:100%; min-height:360px;">
         <div class="chat-thread-head">
           <button type="button" class="chat-back" id="chatBackBtn">←</button>
           <div class="chat-thread-title" id="chatThreadTitle">@ami</div>
+          <button type="button" class="chat-rename" id="chatRenameBtn" title="Renommer" style="display:none;">✏️</button>
         </div>
         <div class="chat-messages" id="chatMessages"></div>
         <div class="chat-compose">
           <input type="text" id="chatInput" placeholder="Écrire un message…" maxlength="500" autocomplete="off">
           <button type="button" id="chatSendBtn">Envoyer</button>
+        </div>
+      </div>
+
+      <!-- Création de groupe -->
+      <div id="groupCreateView" style="display:none;">
+        <div class="social-hint">Nomme le groupe et coche les amis à inviter.</div>
+        <div class="settings-field" style="margin-bottom:10px;">
+          <label>Nom du groupe</label>
+          <input type="text" id="groupNameInput" maxlength="40" placeholder="ex: Team bassin" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--stone-dark);color:var(--ink);">
+        </div>
+        <div class="modal-section-title">Membres</div>
+        <div id="groupMembersPick"><div class="social-empty">Chargement…</div></div>
+        <div class="modal-actions" style="margin-top:12px;gap:8px;">
+          <button type="button" class="cancel-btn" id="groupCreateCancel">Annuler</button>
+          <button type="button" class="save-btn" id="groupCreateConfirm" style="flex:1;">Créer</button>
         </div>
       </div>
     </div>
