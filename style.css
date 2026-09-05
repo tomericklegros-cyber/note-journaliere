@@ -2138,3 +2138,43 @@ body:not(.light-theme) .side-nav {
   background: rgba(var(--accent-rgb), 0.14);
   box-shadow: 0 0 0 1px var(--purple);
 }
+
+/* ---- Accueil : radar + badges (fin design) ---- */
+.today-bottom {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-top: 18px;
+}
+@media (max-width: 820px) {
+  .today-bottom { grid-template-columns: 1fr; }
+}
+.home-radar-wrap {
+  display: flex;
+  justify-content: center;
+  min-height: 200px;
+  align-items: center;
+}
+.home-badges-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px 8px;
+}
+@media (max-width: 480px) {
+  .home-badges-grid { grid-template-columns: repeat(2, 1fr); }
+}
+.home-medal .medal-circle {
+  width: 52px;
+  height: 52px;
+  font-size: 22px;
+}
+.home-medal .medal-label {
+  font-size: 10px;
+}
+.dash-badges .card-head {
+  margin-bottom: 12px;
+}
+.dash-radar h2,
+.dash-badges h2 {
+  margin-bottom: 8px;
+}

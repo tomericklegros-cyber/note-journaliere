@@ -765,13 +765,26 @@
       allBadges.push({ ...SECRET_BADGE, done: true, current: null, target: null, unit: '' });
     }
 
-    wrap.innerHTML = allBadges.map(b => `
+    const medalsHtml = allBadges.map(b => `
       <div class="medal">
         <div class="medal-circle ${b.done ? 'unlocked' : 'locked'} ${b.id === SECRET_BADGE.id ? 'secret-unlocked' : ''}">${medalIconHtml(b)}</div>
         <div class="medal-label ${b.done ? '' : 'locked'}">${b.label}</div>
         ${badgeProgressText(b)}
       </div>
     `).join('');
+    wrap.innerHTML = medalsHtml;
+
+    // Aperçu compact sur l'accueil (max 6)
+    const homeWrap = document.getElementById('homeBadgesWrap');
+    if (homeWrap) {
+      const preview = allBadges.slice(0, 6).map(b => `
+        <div class="medal home-medal">
+          <div class="medal-circle ${b.done ? 'unlocked' : 'locked'} ${b.id === SECRET_BADGE.id ? 'secret-unlocked' : ''}">${medalIconHtml(b)}</div>
+          <div class="medal-label ${b.done ? '' : 'locked'}">${b.label}</div>
+        </div>
+      `).join('');
+      homeWrap.innerHTML = preview || '<div class="chart-empty">Aucun badge pour l’instant.</div>';
+    }
   }
 
   function showBadgeToast(badge) {
@@ -884,11 +897,17 @@
   }
 
   function buildRadarChart() {
-    const wrap = document.getElementById('radarWrap');
     const data = computeAllTimePointsByExercise();
+    const targets = ['radarWrap', 'homeRadarWrap']
+      .map(id => document.getElementById(id))
+      .filter(Boolean);
+
+    if (!targets.length) return;
 
     if (data.length < 3) {
-      wrap.innerHTML = '<div class="chart-empty">Ajoutez au moins 3 exercices pour voir la vue en étoile.</div>';
+      targets.forEach(wrap => {
+        wrap.innerHTML = '<div class="chart-empty">Ajoutez au moins 3 exercices pour voir la vue en étoile.</div>';
+      });
       return;
     }
 
@@ -897,6 +916,11 @@
     const cx = w / 2, cy = 165;
     const R = 95;
     const maxVal = Math.max(...data.map(d => d.points), 10) * 1.15;
+    const isLight = document.body.classList.contains('light-theme');
+    const gridStroke = isLight ? '#D5E0D8' : '#243028';
+    const labelFill = isLight ? '#5C6B62' : '#8B968F';
+    const accent = isLight ? '#22C55E' : '#7CFF3A';
+    const accentFill = isLight ? 'rgba(34,197,94,0.22)' : 'rgba(124,255,58,0.22)';
 
     function pointFor(i, ratio) {
       const angle = -Math.PI / 2 + i * (2 * Math.PI / n);
@@ -907,34 +931,35 @@
     let gridPolys = '';
     [0.25, 0.5, 0.75, 1].forEach(frac => {
       const pts = data.map((_, i) => pointFor(i, frac).join(',')).join(' ');
-      gridPolys += `<polygon points="${pts}" fill="none" stroke="#322B44" stroke-width="1" opacity="0.6"/>`;
+      gridPolys += `<polygon points="${pts}" fill="none" stroke="${gridStroke}" stroke-width="1" opacity="0.7"/>`;
     });
 
     const axisLines = data.map((_, i) => {
       const [x, y] = pointFor(i, 1);
-      return `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#322B44" stroke-width="1" opacity="0.6"/>`;
+      return `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="${gridStroke}" stroke-width="1" opacity="0.7"/>`;
     }).join('');
 
     const dataPts = data.map((d, i) => pointFor(i, Math.min(1, d.points / maxVal)).map(v => v.toFixed(1)).join(',')).join(' ');
-    const dataPoly = `<polygon points="${dataPts}" fill="rgba(155,109,224,0.28)" stroke="#9B6DE0" stroke-width="2.5"/>`;
+    const dataPoly = `<polygon points="${dataPts}" fill="${accentFill}" stroke="${accent}" stroke-width="2.5"/>`;
     const dataCircles = data.map((d, i) => {
       const [x, y] = pointFor(i, Math.min(1, d.points / maxVal));
-      return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4" fill="#EFC24C" />`;
+      return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4" fill="${accent}" />`;
     }).join('');
 
     const labels = data.map((d, i) => {
       const [x, y] = pointFor(i, 1.3);
-      return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" font-size="10" fill="#9A93AD" text-anchor="middle" font-family="IBM Plex Mono, monospace">${escapeHtml(d.name)}</text>
-              <text x="${x.toFixed(1)}" y="${(y+12).toFixed(1)}" font-size="10" fill="#EFC24C" font-weight="700" text-anchor="middle" font-family="IBM Plex Mono, monospace">${d.points} pts</text>`;
+      return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" font-size="10" fill="${labelFill}" text-anchor="middle" font-family="IBM Plex Mono, monospace">${escapeHtml(d.name)}</text>
+              <text x="${x.toFixed(1)}" y="${(y+12).toFixed(1)}" font-size="10" fill="${accent}" font-weight="700" text-anchor="middle" font-family="IBM Plex Mono, monospace">${d.points} pts</text>`;
     }).join('');
 
-    wrap.innerHTML = `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" style="max-width: 340px;">
+    const html = `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" style="max-width: 340px;">
       ${gridPolys}
       ${axisLines}
       ${dataPoly}
       ${dataCircles}
       ${labels}
     </svg>`;
+    targets.forEach(wrap => { wrap.innerHTML = html; });
   }
 
   function render() {
@@ -2028,6 +2053,10 @@
   document.getElementById('calSaveNoteBtn')?.addEventListener('click', saveCalNote);
   document.getElementById('dateBadge')?.addEventListener('click', () => {
     showSection('section-calendar');
+    closeNav();
+  });
+  document.getElementById('homeBadgesMoreBtn')?.addEventListener('click', () => {
+    showSection('section-badges');
     closeNav();
   });
 
