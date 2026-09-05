@@ -98,6 +98,50 @@
   </div>
 </div>
 
+<!-- ONBOARDING (3 questions) -->
+<div class="modal-overlay" id="onboardingOverlay">
+  <div class="modal-panel" style="max-width: 440px;">
+    <h2>Personnalisons ton app</h2>
+    <div class="modal-sub">3 questions rapides pour adapter ton objectif et tes conseils.</div>
+    <div class="onb-progress"><span id="onbStepLabel">1 / 3</span></div>
+
+    <div class="onb-step" data-onb="1">
+      <div class="onb-q">Quel est ton niveau actuel ?</div>
+      <div class="onb-options" id="onbLevel">
+        <button type="button" class="onb-opt" data-val="beginner">Débutant — je reprends / je commence</button>
+        <button type="button" class="onb-opt" data-val="intermediate">Intermédiaire — je m’entraîne déjà</button>
+        <button type="button" class="onb-opt" data-val="advanced">Confirmé — je vise la perf</button>
+      </div>
+    </div>
+
+    <div class="onb-step" data-onb="2" style="display:none;">
+      <div class="onb-q">Ton objectif principal ?</div>
+      <div class="onb-options" id="onbGoal">
+        <button type="button" class="onb-opt" data-val="regularity">Être régulier chaque jour</button>
+        <button type="button" class="onb-opt" data-val="strength">Gagner en force</button>
+        <button type="button" class="onb-opt" data-val="endurance">Améliorer l’endurance</button>
+      </div>
+    </div>
+
+    <div class="onb-step" data-onb="3" style="display:none;">
+      <div class="onb-q">Tes exercices préférés ? <span style="font-weight:400;color:var(--ink-soft)">(plusieurs possibles)</span></div>
+      <div class="onb-options multi" id="onbExos">
+        <button type="button" class="onb-opt" data-val="pompes">Pompes</button>
+        <button type="button" class="onb-opt" data-val="tractions">Tractions</button>
+        <button type="button" class="onb-opt" data-val="abdos">Abdos</button>
+        <button type="button" class="onb-opt" data-val="course">Course</button>
+        <button type="button" class="onb-opt" data-val="gainage">Gainage</button>
+      </div>
+    </div>
+
+    <div class="flash" id="onbFlash" style="min-height:18px;margin-top:10px;"></div>
+    <div class="modal-actions" style="margin-top:12px;">
+      <button type="button" class="cancel-btn" id="onbSkipBtn">Passer</button>
+      <button type="button" class="save-btn" id="onbNextBtn" style="flex:1;">Continuer</button>
+    </div>
+  </div>
+</div>
+
 <button class="nav-toggle" id="navToggle" title="Menu">☰</button>
 <div class="nav-scrim" id="navScrim"></div>
 
@@ -321,46 +365,52 @@
 
   <div class="grid">
 
-    <!-- GAUGE + FORM -->
+    <!-- GAUGE + FORM — layout type mockup dashboard -->
     <div class="app-section" id="section-today">
-      <div class="card gauge-card">
-        <h2>Aujourd'hui</h2>
-        <div class="gauge-shell">
-          <div class="tick-labels" id="tickLabels"></div>
-          <div class="gauge-tube" id="gaugeTube">
-            <div class="fill" id="fill"></div>
+      <div class="today-dashboard">
+        <div class="card gauge-card dash-gauge">
+          <h2>Niveau du jour</h2>
+          <div class="gauge-layout">
+            <div class="gauge-shell">
+              <div class="tick-labels" id="tickLabels"></div>
+              <div class="gauge-tube" id="gaugeTube">
+                <div class="fill" id="fill"></div>
+              </div>
+              <div class="lap-badge" id="lapBadge">×1</div>
+            </div>
+            <div class="gauge-side">
+              <div class="legend" id="legend"></div>
+            </div>
           </div>
-          <div class="lap-badge" id="lapBadge">×1</div>
-        </div>
-        <div class="score-readout" id="scoreReadout">0<span> pts</span></div>
-        <div class="rank-pill" id="rankPill">Débutant</div>
-        <div class="rank-progress" id="rankProgress">
-          <div id="progressText">0 / 30 pts vers Bon</div>
-          <div class="bar"><div class="bar-fill" id="barFill"></div></div>
-        </div>
-
-        <div class="goal-box">
-          <div id="goalText">Objectif du jour : 150 pts</div>
-          <div class="bar"><div class="bar-fill" id="goalBarFill"></div></div>
+          <div class="score-readout" id="scoreReadout">0<span> pts</span></div>
+          <div class="rank-pill" id="rankPill">Débutant</div>
+          <div class="rank-progress" id="rankProgress">
+            <div id="progressText">0 / 30 pts vers Bon</div>
+            <div class="bar"><div class="bar-fill" id="barFill"></div></div>
+          </div>
+          <div class="goal-box">
+            <div id="goalText">Objectif du jour : 150 pts</div>
+            <div class="bar"><div class="bar-fill" id="goalBarFill"></div></div>
+          </div>
         </div>
 
-        <div class="legend" id="legend"></div>
-
-        <div class="tip-box" id="tipBox">
-          <div class="tip-label" id="tipLabel">Conseil</div>
-          <div class="tip-text" id="tipText">Chargement…</div>
+        <div class="card dash-score">
+          <h2>Détail & objectif</h2>
+          <div class="breakdown" id="breakdown"></div>
+          <div class="tip-box" id="tipBox">
+            <div class="tip-label" id="tipLabel">Conseil</div>
+            <div class="tip-text" id="tipText">Chargement…</div>
+          </div>
         </div>
       </div>
 
-      <div class="card" style="margin-top: 24px;">
+      <div class="card dash-exercises">
         <div class="card-head">
-          <h2>Ajouter une série</h2>
+          <h2>Exercices</h2>
         </div>
         <div class="exercise-form" id="exerciseForm"></div>
         <button class="add-btn" id="addBtn">Ajouter au score du jour</button>
         <div class="flash" id="flashMsg"></div>
-
-        <div class="breakdown" id="breakdown"></div>
       </div>
     </div>
 

@@ -222,6 +222,8 @@
           dayNotes: cloud.dayNotes && typeof cloud.dayNotes === 'object' ? cloud.dayNotes : {},
           xp: typeof cloud.xp === 'number' ? cloud.xp : 0,
           xpClaimedChallenges: Array.isArray(cloud.xpClaimedChallenges) ? cloud.xpClaimedChallenges : [],
+          onboardingDone: !!cloud.onboardingDone,
+          onboarding: cloud.onboarding && typeof cloud.onboarding === 'object' ? cloud.onboarding : null,
           seenBadges: Array.isArray(cloud.seenBadges) ? cloud.seenBadges : [],
           secretBadgeUnlocked: typeof cloud.secretBadgeUnlocked === 'boolean' ? cloud.secretBadgeUnlocked : false,
           hackerCelebratedToday: typeof cloud.hackerCelebratedToday === 'boolean' ? cloud.hackerCelebratedToday : false,
@@ -425,7 +427,9 @@
       difficultyBonus: 0,
       dayNotes: {},
       xp: 0,
-      xpClaimedChallenges: []
+      xpClaimedChallenges: [],
+      onboardingDone: false,
+      onboarding: null
     };
   }
 
@@ -473,6 +477,8 @@
         dayNotes: parsed.dayNotes && typeof parsed.dayNotes === 'object' ? parsed.dayNotes : {},
         xp: typeof parsed.xp === 'number' ? parsed.xp : 0,
         xpClaimedChallenges: Array.isArray(parsed.xpClaimedChallenges) ? parsed.xpClaimedChallenges : [],
+        onboardingDone: !!parsed.onboardingDone,
+        onboarding: parsed.onboarding && typeof parsed.onboarding === 'object' ? parsed.onboarding : null,
         seenBadges: Array.isArray(parsed.seenBadges) ? parsed.seenBadges : null,
         secretBadgeUnlocked: typeof parsed.secretBadgeUnlocked === 'boolean' ? parsed.secretBadgeUnlocked : null,
         hackerCelebratedToday: typeof parsed.hackerCelebratedToday === 'boolean' ? parsed.hackerCelebratedToday : false,
@@ -2032,7 +2038,7 @@
 
   /* ---- THEME TOGGLE ---- */
   const THEME_KEY = 'note_journaliere_theme';
-  let currentTheme = 'dark';
+  let currentTheme = 'light';
 
   function applyTheme(theme) {
     currentTheme = theme;
@@ -2043,7 +2049,7 @@
     try { localStorage.setItem(THEME_KEY, theme); } catch (e) {}
   }
 
-  try { currentTheme = localStorage.getItem(THEME_KEY) || 'dark'; } catch (e) {}
+  try { currentTheme = localStorage.getItem(THEME_KEY) || 'light'; } catch (e) {}
   applyTheme(currentTheme);
 
   document.getElementById('themeDarkBtn').addEventListener('click', () => applyTheme('dark'));
@@ -2219,20 +2225,125 @@
     flash('Profil public publié (admin)');
   });
 
-  /* ---- INTRO SPLASH ---- */
+  /* ---- INTRO SPLASH + ONBOARDING ---- */
   const INTRO_KEY = 'note_journaliere_intro_seen';
+  const ONB_KEY = 'note_journaliere_onboarding_done';
   const introSplash = document.getElementById('introSplash');
+
+  const onbAnswers = { level: null, goal: null, exos: [] };
+  let onbStep = 1;
+
+  function openOnboarding() {
+    let done = false;
+    try { done = localStorage.getItem(ONB_KEY) === '1' || !!(state && state.onboardingDone); } catch (e) {}
+    if (done) return;
+    onbStep = 1;
+    onbAnswers.level = null;
+    onbAnswers.goal = null;
+    onbAnswers.exos = [];
+    document.querySelectorAll('.onb-opt').forEach(b => b.classList.remove('selected'));
+    document.getElementById('onbFlash').textContent = '';
+    showOnbStep(1);
+    document.getElementById('onboardingOverlay').classList.add('open');
+  }
+
+  function showOnbStep(n) {
+    onbStep = n;
+    document.querySelectorAll('.onb-step').forEach(el => {
+      el.style.display = el.getAttribute('data-onb') === String(n) ? 'block' : 'none';
+    });
+    document.getElementById('onbStepLabel').textContent = n + ' / 3';
+    document.getElementById('onbNextBtn').textContent = n === 3 ? 'Terminer' : 'Continuer';
+    document.getElementById('onbFlash').textContent = '';
+  }
+
+  function finishOnboarding(skipped) {
+    document.getElementById('onboardingOverlay').classList.remove('open');
+    try { localStorage.setItem(ONB_KEY, '1'); } catch (e) {}
+    state.onboardingDone = true;
+
+    if (!skipped && onbAnswers.level) {
+      // Objectif adapté au niveau
+      const goals = { beginner: 80, intermediate: 150, advanced: 280 };
+      state.dailyGoal = goals[onbAnswers.level] || 150;
+      state.onboarding = {
+        level: onbAnswers.level,
+        goal: onbAnswers.goal,
+        favoriteExercises: onbAnswers.exos.slice()
+      };
+      // Petit message personnalisé dans le conseil
+      const tips = {
+        beginner: 'Objectif doux pour commencer : la régularité bat l’intensité.',
+        intermediate: 'Bel équilibre — vise ton objectif chaque jour, sans te griller.',
+        advanced: 'Mode perf : pousse tes séries, mais garde un œil sur la récup.'
+      };
+      if (tips[onbAnswers.level]) {
+        try {
+          const tipEl = document.getElementById('tipText');
+          if (tipEl) tipEl.textContent = tips[onbAnswers.level];
+        } catch (e) {}
+      }
+      saveState();
+      render();
+      flash('Profil personnalisé — objectif ' + state.dailyGoal + ' pts / jour');
+    } else {
+      state.onboarding = state.onboarding || null;
+      saveState();
+    }
+  }
+
   try {
     if (localStorage.getItem(INTRO_KEY) === '1') {
       introSplash.style.display = 'none';
+      // Intro déjà vue → proposer onboarding si pas fait
+      setTimeout(openOnboarding, 300);
     }
   } catch (e) {}
 
   document.getElementById('introSkipBtn').addEventListener('click', () => {
     introSplash.classList.add('hide');
     try { localStorage.setItem(INTRO_KEY, '1'); } catch (e) {}
-    setTimeout(() => { introSplash.style.display = 'none'; }, 400);
+    setTimeout(() => {
+      introSplash.style.display = 'none';
+      openOnboarding();
+    }, 400);
   });
+
+  // Choix single
+  document.querySelectorAll('#onbLevel .onb-opt, #onbGoal .onb-opt').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const group = btn.parentElement;
+      group.querySelectorAll('.onb-opt').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      if (group.id === 'onbLevel') onbAnswers.level = btn.dataset.val;
+      if (group.id === 'onbGoal') onbAnswers.goal = btn.dataset.val;
+    });
+  });
+  // Choix multi exercices
+  document.querySelectorAll('#onbExos .onb-opt').forEach(btn => {
+    btn.addEventListener('click', () => {
+      btn.classList.toggle('selected');
+      onbAnswers.exos = Array.from(document.querySelectorAll('#onbExos .onb-opt.selected')).map(b => b.dataset.val);
+    });
+  });
+
+  document.getElementById('onbNextBtn').addEventListener('click', () => {
+    const flashEl = document.getElementById('onbFlash');
+    if (onbStep === 1 && !onbAnswers.level) {
+      flashEl.textContent = 'Choisis ton niveau pour continuer.';
+      return;
+    }
+    if (onbStep === 2 && !onbAnswers.goal) {
+      flashEl.textContent = 'Choisis un objectif pour continuer.';
+      return;
+    }
+    if (onbStep === 3) {
+      finishOnboarding(false);
+      return;
+    }
+    showOnbStep(onbStep + 1);
+  });
+  document.getElementById('onbSkipBtn').addEventListener('click', () => finishOnboarding(true));
 
   document.getElementById('adminFullResetBtn').addEventListener('click', () => {
     const ok = confirm("Réinitialiser TOUTE l'application, comme si vous veniez de l'ouvrir pour la première fois ? Données, prénom, exercices personnalisés, badges, thème, tout sera effacé. Cette action est irréversible.");
@@ -2244,6 +2355,7 @@
       localStorage.removeItem(WELCOME_KEY);
       localStorage.removeItem(THEME_KEY);
       localStorage.removeItem(INTRO_KEY);
+      localStorage.removeItem(ONB_KEY);
     } catch (e) {}
     location.reload();
   });
