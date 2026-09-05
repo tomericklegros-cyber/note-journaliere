@@ -1979,3 +1979,179 @@
   color: var(--ink-soft);
   padding: 8px 0;
 }
+
+/* ========== REDESIGN v2 — Spotify / glass ========== */
+body {
+  background-color: #0a090f !important;
+  background-image: none !important;
+  animation: none !important;
+  padding: 24px 16px 96px !important;
+  overflow-x: hidden;
+}
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(80px);
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.55;
+}
+body::before {
+  width: 420px; height: 420px;
+  top: -120px; left: -80px;
+  background: radial-gradient(circle, rgba(155,109,224,0.55), transparent 70%);
+}
+body::after {
+  width: 380px; height: 380px;
+  bottom: -100px; right: -60px;
+  background: radial-gradient(circle, rgba(57,255,156,0.22), transparent 70%);
+}
+body.light-theme {
+  background-color: #f3efe6 !important;
+}
+body.light-theme::before {
+  background: radial-gradient(circle, rgba(124,86,201,0.28), transparent 70%);
+}
+body.light-theme::after {
+  background: radial-gradient(circle, rgba(69,173,122,0.18), transparent 70%);
+}
+
+.wrap, .app-body, .side-nav, .social-panel, .social-toggle, .nav-toggle, .modal-overlay {
+  position: relative;
+  z-index: 1;
+}
+.wrap { max-width: 1120px; }
+
+.card {
+  background: rgba(20, 18, 27, 0.72) !important;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(155,109,224,0.18) !important;
+  border-radius: 20px !important;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.28);
+}
+body.light-theme .card {
+  background: rgba(255,255,255,0.78) !important;
+  border-color: rgba(124,86,201,0.15) !important;
+  box-shadow: 0 10px 30px rgba(80,60,20,0.08);
+}
+
+.side-nav {
+  background: rgba(12, 10, 18, 0.88) !important;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-right: 1px solid rgba(155,109,224,0.2) !important;
+  box-shadow: 8px 0 32px rgba(0,0,0,0.35);
+}
+.side-nav-title {
+  letter-spacing: 0.6px;
+  background: linear-gradient(90deg, #c4a4ff, #9B6DE0);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent !important;
+}
+.side-nav button.nav-item {
+  border-radius: 999px !important;
+  margin: 2px 8px;
+  border: none !important;
+  transition: background 0.18s ease, transform 0.12s ease;
+}
+.side-nav button.nav-item:hover {
+  background: rgba(155,109,224,0.14) !important;
+  transform: translateX(2px);
+}
+.side-nav button.nav-item.active {
+  background: linear-gradient(90deg, rgba(155,109,224,0.35), rgba(155,109,224,0.12)) !important;
+  color: #fff !important;
+}
+
+.social-toggle {
+  background: linear-gradient(135deg, rgba(155,109,224,0.95), rgba(108,84,200,0.95)) !important;
+  border: none !important;
+  color: #fff !important;
+  box-shadow: 0 8px 28px rgba(155,109,224,0.4) !important;
+}
+.social-panel {
+  background: rgba(14, 12, 20, 0.94) !important;
+  backdrop-filter: blur(22px);
+  border-left: 1px solid rgba(155,109,224,0.25) !important;
+}
+.social-tab.active {
+  background: linear-gradient(90deg, rgba(155,109,224,0.4), rgba(155,109,224,0.15)) !important;
+}
+
+.date-badge {
+  background: rgba(20,18,27,0.75) !important;
+  backdrop-filter: blur(12px);
+  border-radius: 999px !important;
+  border: 1px solid rgba(155,109,224,0.3) !important;
+  padding: 8px 14px !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.date-badge:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(155,109,224,0.25);
+}
+
+.auth-btn.primary, .save-btn, #challengeSendBtn, #calSaveNoteBtn, #friendAddBtn, #chatSendBtn {
+  background: linear-gradient(135deg, #9B6DE0, #6c54c8) !important;
+  border: none !important;
+  color: #fff !important;
+  border-radius: 999px !important;
+  font-weight: 700;
+  box-shadow: 0 6px 20px rgba(155,109,224,0.3);
+}
+
+.friend-card, .challenge-card {
+  border-radius: 16px !important;
+  background: rgba(23,20,31,0.85) !important;
+  border: 1px solid rgba(155,109,224,0.15) !important;
+}
+.chat-bubble.me {
+  background: linear-gradient(135deg, #9B6DE0, #7a5ad0) !important;
+  color: #fff !important;
+  border-radius: 16px 16px 4px 16px !important;
+}
+.chat-bubble.them {
+  background: rgba(40,36,55,0.95) !important;
+  border-radius: 16px 16px 16px 4px !important;
+}
+
+.profile-avatar, #fpAvatar {
+  box-shadow: 0 8px 24px rgba(155,109,224,0.35);
+}
+.profile-xp-fill {
+  background: linear-gradient(90deg, #9B6DE0, #39FF9C) !important;
+}
+
+.cal-day.today {
+  box-shadow: 0 0 0 2px #9B6DE0, 0 0 20px rgba(155,109,224,0.35);
+}
+.cal-day.has-score {
+  background: rgba(155,109,224,0.18) !important;
+}
+
+.gauge-shell {
+  filter: drop-shadow(0 8px 24px rgba(155,109,224,0.15));
+}
+
+.modal-panel {
+  background: rgba(18,16,26,0.92) !important;
+  backdrop-filter: blur(22px);
+  border: 1px solid rgba(155,109,224,0.22) !important;
+  border-radius: 22px !important;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.5);
+}
+body.light-theme .modal-panel {
+  background: rgba(255,255,255,0.92) !important;
+}
+
+@media (max-width: 880px) {
+  body { padding-bottom: 28px !important; }
+  .side-nav {
+    border-right: none !important;
+    border-radius: 0 0 20px 20px;
+  }
+}

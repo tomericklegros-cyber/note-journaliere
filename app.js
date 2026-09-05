@@ -2160,6 +2160,65 @@
     showBadgeToast(badge);
   });
 
+  document.getElementById('adminSetXpBtn')?.addEventListener('click', () => {
+    if (!isAdminUser()) return;
+    const v = parseInt(document.getElementById('adminXpInput').value, 10);
+    if (isNaN(v) || v < 0) { flash('XP invalide'); return; }
+    state.xp = v;
+    saveState();
+    if (typeof renderProfile === 'function') renderProfile();
+    flash('XP défini à ' + v + ' (admin)');
+  });
+  document.getElementById('adminAddXpBtn')?.addEventListener('click', () => {
+    if (!isAdminUser()) return;
+    const v = parseInt(document.getElementById('adminXpInput').value, 10) || 0;
+    state.xp = (state.xp || 0) + v;
+    saveState();
+    if (typeof renderProfile === 'function') renderProfile();
+    flash('+' + v + ' XP (admin) → total ' + state.xp);
+  });
+  document.getElementById('adminResetXpBtn')?.addEventListener('click', () => {
+    if (!isAdminUser()) return;
+    state.xp = 0;
+    state.xpClaimedChallenges = [];
+    saveState();
+    if (typeof renderProfile === 'function') renderProfile();
+    flash('XP remis à 0 (admin)');
+  });
+  document.getElementById('adminBoostScoreBtn')?.addEventListener('click', () => {
+    if (!isAdminUser()) return;
+    const pts = parseFloat(document.getElementById('adminScoreBoost').value) || 0;
+    if (pts <= 0) { flash('Valeur invalide'); return; }
+    const ex = (state.exercises || []).find(e => (e.points || 0) > 0) || state.exercises[0];
+    if (!ex) return;
+    const addVal = pts / (ex.points || 1);
+    ex.value = Math.round(((ex.value || 0) + addVal) * 10) / 10;
+    saveState();
+    buildForm();
+    render();
+    flash('+' + pts + ' pts approx. via ' + ex.name + ' (admin)');
+  });
+  document.getElementById('adminZeroTodayBtn')?.addEventListener('click', () => {
+    if (!isAdminUser()) return;
+    state.exercises = (state.exercises || []).map(ex => ({ ...ex, value: 0 }));
+    saveState();
+    buildForm();
+    render();
+    flash('Score du jour à 0 (admin)');
+  });
+  document.getElementById('adminForceSyncBtn')?.addEventListener('click', async () => {
+    if (!isAdminUser()) return;
+    if (!currentUser) { flash('Pas connecté'); return; }
+    await saveToCloud();
+    flash('Sync cloud forcée (admin)');
+  });
+  document.getElementById('adminPublishProfileBtn')?.addEventListener('click', async () => {
+    if (!isAdminUser()) return;
+    if (!currentUser) { flash('Pas connecté'); return; }
+    await publishPublicProfile();
+    flash('Profil public publié (admin)');
+  });
+
   /* ---- INTRO SPLASH ---- */
   const INTRO_KEY = 'note_journaliere_intro_seen';
   const introSplash = document.getElementById('introSplash');

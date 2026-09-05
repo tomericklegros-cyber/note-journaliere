@@ -529,6 +529,25 @@
     <button type="button" class="ghost-btn" id="adminFullResetBtn" style="width: 100%; margin-bottom: 8px; border-color: #D9455A; background: #D9455A; color: #FFF;">💣 Réinitialiser TOUTE l'application</button>
     <div style="font-size: 11px; color: var(--ink-soft); margin: -4px 0 12px;">Comme si vous veniez de l'ouvrir pour la première fois : données, prénom, thème, tout est effacé.</div>
 
+    <div class="modal-section-title">XP & niveau</div>
+    <div class="theme-switch-row" style="margin-bottom: 8px; gap: 8px;">
+      <input type="number" id="adminXpInput" min="0" step="10" value="0" style="flex:1;background:var(--stone-dark);border:1px solid var(--line);border-radius:8px;padding:10px;color:var(--ink);">
+      <button type="button" class="ghost-btn" id="adminSetXpBtn">Définir XP</button>
+      <button type="button" class="ghost-btn" id="adminAddXpBtn">+ XP</button>
+    </div>
+    <button type="button" class="ghost-btn" id="adminResetXpBtn" style="width:100%;margin-bottom:12px;">Remettre XP à 0</button>
+
+    <div class="modal-section-title">Score du jour (admin)</div>
+    <div class="theme-switch-row" style="margin-bottom: 8px; gap: 8px;">
+      <input type="number" id="adminScoreBoost" min="0" step="10" value="100" style="flex:1;background:var(--stone-dark);border:1px solid var(--line);border-radius:8px;padding:10px;color:var(--ink);">
+      <button type="button" class="ghost-btn" id="adminBoostScoreBtn">Ajouter pts</button>
+    </div>
+    <button type="button" class="ghost-btn" id="adminZeroTodayBtn" style="width:100%;margin-bottom:12px;">Remettre le score du jour à 0</button>
+
+    <div class="modal-section-title">Cloud / profil public</div>
+    <button type="button" class="ghost-btn" id="adminForceSyncBtn" style="width:100%;margin-bottom:8px;">Forcer sync cloud</button>
+    <button type="button" class="ghost-btn" id="adminPublishProfileBtn" style="width:100%;margin-bottom:12px;">Publier mon profil public</button>
+
     <div class="modal-section-title">Tester les animations</div>
     <button type="button" class="ghost-btn" id="adminTestRecordBtn" style="width: 100%; margin-bottom: 8px;">🏆 Confettis (nouveau record)</button>
     <button type="button" class="ghost-btn" id="adminTestBadgeToastBtn" style="width: 100%; margin-bottom: 8px;">🥇 Notification de badge (sélectionné ci-dessus)</button>
