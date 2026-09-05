@@ -2410,3 +2410,108 @@ body:not(.light-theme) .side-nav {
   font-weight: 600;
 }
 .group-pick-row input { width: 16px; height: 16px; }
+
+/* ---- Chat + menu & polish ---- */
+.chat-plus-wrap { position: relative; }
+.chat-plus, .chat-rename, .chat-back {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--stone-dark);
+  color: var(--ink);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 700;
+}
+.chat-plus:hover, .chat-rename:hover { border-color: var(--purple); background: rgba(var(--accent-rgb),0.12); }
+.chat-plus-menu {
+  position: absolute;
+  right: 0;
+  top: 42px;
+  min-width: 180px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.18);
+  padding: 6px;
+  z-index: 20;
+}
+.chat-plus-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.chat-plus-menu button:hover { background: rgba(var(--accent-rgb),0.12); }
+.chat-send-btn {
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 50% !important;
+  border: none !important;
+  background: var(--purple) !important;
+  color: #0B0A10 !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  cursor: pointer;
+  flex-shrink: 0;
+  box-shadow: 0 6px 16px rgba(var(--accent-rgb),0.28);
+}
+.chat-compose {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding-top: 8px;
+}
+.chat-compose input {
+  flex: 1;
+  border-radius: 999px !important;
+  padding: 12px 16px !important;
+}
+.chat-messages {
+  background: rgba(var(--accent-rgb), 0.03);
+  border-radius: 16px;
+  padding: 10px;
+}
+
+/* ---- Classement défis multi ---- */
+.multi-standings {
+  margin: 10px 0 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.multi-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--stone-dark);
+  border: 1px solid var(--line);
+  font-size: 13px;
+}
+.multi-row.me {
+  border-color: var(--purple);
+  background: rgba(var(--accent-rgb), 0.12);
+}
+.multi-row .m-rank { width: 28px; text-align: center; }
+.multi-row .m-name { flex: 1; font-weight: 700; }
+.multi-row .m-score {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--purple);
+}
+.challenge-card.multi .ctype {
+  letter-spacing: 0.02em;
+}

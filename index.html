@@ -242,12 +242,46 @@
         <div class="chat-thread-head">
           <button type="button" class="chat-back" id="chatBackBtn">←</button>
           <div class="chat-thread-title" id="chatThreadTitle">@ami</div>
-          <button type="button" class="chat-rename" id="chatRenameBtn" title="Renommer" style="display:none;">✏️</button>
+          <button type="button" class="chat-rename" id="chatRenameBtn" title="Renommer">✏️</button>
+          <div class="chat-plus-wrap">
+            <button type="button" class="chat-plus" id="chatPlusBtn" title="Actions">+</button>
+            <div class="chat-plus-menu" id="chatPlusMenu" style="display:none;">
+              <button type="button" id="chatPlusChallenge">🏆 Lancer un défi</button>
+              <button type="button" id="chatPlusRename">✏️ Renommer</button>
+            </div>
+          </div>
         </div>
         <div class="chat-messages" id="chatMessages"></div>
         <div class="chat-compose">
           <input type="text" id="chatInput" placeholder="Écrire un message…" maxlength="500" autocomplete="off">
-          <button type="button" id="chatSendBtn">Envoyer</button>
+          <button type="button" id="chatSendBtn" class="chat-send-btn">➤</button>
+        </div>
+      </div>
+
+      <!-- Défi depuis conversation (multi 2-4) -->
+      <div id="chatChallengeView" style="display:none;">
+        <div class="social-hint">Défi depuis la conversation (2 à 4 personnes).</div>
+        <div class="settings-field" style="margin-bottom:8px;">
+          <label>Type</label>
+          <select id="chatChType" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--stone-dark);color:var(--ink);">
+            <option value="score_day">Score du jour</option>
+            <option value="exercise">Exercice</option>
+            <option value="goal">Objectif points</option>
+          </select>
+        </div>
+        <div class="settings-field" id="chatChExField" style="margin-bottom:8px;display:none;">
+          <label>Exercice</label>
+          <select id="chatChEx" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--stone-dark);color:var(--ink);"></select>
+        </div>
+        <div class="settings-field" id="chatChGoalField" style="margin-bottom:8px;display:none;">
+          <label>Objectif (pts)</label>
+          <input type="number" id="chatChGoal" min="10" step="10" value="150" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--stone-dark);color:var(--ink);">
+        </div>
+        <div class="modal-section-title">Participants</div>
+        <div id="chatChMembers"></div>
+        <div class="modal-actions" style="margin-top:12px;gap:8px;">
+          <button type="button" class="cancel-btn" id="chatChCancel">Annuler</button>
+          <button type="button" class="save-btn" id="chatChSend" style="flex:1;">Envoyer le défi</button>
         </div>
       </div>
 

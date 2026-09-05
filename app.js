@@ -429,7 +429,8 @@
       xp: 0,
       xpClaimedChallenges: [],
       onboardingDone: false,
-      onboarding: null
+      onboarding: null,
+      chatNicknames: {}
     };
   }
 
@@ -479,6 +480,7 @@
         xpClaimedChallenges: Array.isArray(parsed.xpClaimedChallenges) ? parsed.xpClaimedChallenges : [],
         onboardingDone: !!parsed.onboardingDone,
         onboarding: parsed.onboarding && typeof parsed.onboarding === 'object' ? parsed.onboarding : null,
+        chatNicknames: parsed.chatNicknames && typeof parsed.chatNicknames === 'object' ? parsed.chatNicknames : {},
         seenBadges: Array.isArray(parsed.seenBadges) ? parsed.seenBadges : null,
         secretBadgeUnlocked: typeof parsed.secretBadgeUnlocked === 'boolean' ? parsed.secretBadgeUnlocked : null,
         hackerCelebratedToday: typeof parsed.hackerCelebratedToday === 'boolean' ? parsed.hackerCelebratedToday : false,
@@ -2807,6 +2809,7 @@
   /* ---- DÉFIS ---- */
   let challengesUnsubFrom = null;
   let challengesUnsubTo = null;
+  let challengesUnsubMulti = null;
   let chronoTickTimer = null;
   let activeChronoChallengeId = null;
   let cachedChallenges = {};
@@ -2821,6 +2824,7 @@
   function stopChallengeListeners() {
     if (challengesUnsubFrom) { challengesUnsubFrom(); challengesUnsubFrom = null; }
     if (challengesUnsubTo) { challengesUnsubTo(); challengesUnsubTo = null; }
+    if (challengesUnsubMulti) { challengesUnsubMulti(); challengesUnsubMulti = null; }
     if (chronoTickTimer) { clearInterval(chronoTickTimer); chronoTickTimer = null; }
   }
 
@@ -2927,6 +2931,37 @@
     return ex ? ex.value : 0;
   }
 
+  function isMultiChallenge(ch) {
+    return !!(ch && (ch.mode === 'multi' || (Array.isArray(ch.participants) && ch.participants.length > 2)));
+  }
+
+  function multiRankingRows(ch) {
+    const parts = ch.participants || [];
+    const scores = ch.scores || {};
+    const rows = parts.map(uid => ({
+      uid,
+      pseudo: (ch.pseudos && ch.pseudos[uid]) || uid,
+      score: typeof scores[uid] === 'number' ? scores[uid] : null
+    }));
+    rows.sort((a, b) => {
+      if (a.score === null && b.score === null) return 0;
+      if (a.score === null) return 1;
+      if (b.score === null) return -1;
+      return b.score - a.score;
+    });
+    return rows;
+  }
+
+  function multiStandingHtml(ch) {
+    const rows = multiRankingRows(ch);
+    const medals = ['🥇', '🥈', '🥉', '4️⃣'];
+    return `<div class="multi-standings">${rows.map((r, i) => {
+      const sc = r.score === null ? '…' : r.score;
+      const me = r.uid === currentUser.uid ? ' me' : '';
+      return `<div class="multi-row${me}"><span class="m-rank">${medals[i] || (i + 1)}</span><span class="m-name">@${escapeHtml(r.pseudo)}</span><span class="m-score">${sc}</span></div>`;
+    }).join('')}</div>`;
+  }
+
   function renderChallengesList() {
     const list = document.getElementById('challengesList');
     if (!list || !currentUser) return;
@@ -2942,34 +2977,57 @@
     list.innerHTML = '';
     items.forEach(ch => {
       const card = document.createElement('div');
-      card.className = 'challenge-card status-' + ch.status;
+      card.className = 'challenge-card status-' + ch.status + (isMultiChallenge(ch) ? ' multi' : '');
+      const multi = isMultiChallenge(ch);
       const isFromMe = ch.fromUid === currentUser.uid;
       const other = isFromMe ? ch.toPseudo : ch.fromPseudo;
+      const playersLabel = multi
+        ? ((ch.participants || []).length + ' joueurs')
+        : ('vs @' + (other || '?'));
+
       let detail = '';
-      if (ch.type === 'score_day') detail = 'Qui a le plus de points aujourd’hui';
+      if (ch.type === 'score_day') detail = multi ? 'Classement score du jour' : 'Qui a le plus de points aujourd’hui';
       if (ch.type === 'exercise') detail = 'Le plus de ' + (ch.exerciseName || 'exercice');
       if (ch.type === 'goal') detail = 'Atteindre ' + (ch.goalPoints || '?') + ' pts';
       if (ch.type === 'chrono') detail = 'Chrono duel — celui qui tient le plus longtemps';
 
       let statusLine = '';
+      let standings = '';
       if (ch.status === 'pending') statusLine = isFromMe ? 'En attente de @' + other : '@' + other + ' t’a défié';
       if (ch.status === 'active') {
-        statusLine = 'En cours vs @' + other;
-        if (ch.type === 'score_day' || ch.type === 'exercise' || ch.type === 'goal') {
-          const mySc = isFromMe ? ch.fromScore : ch.toScore;
-          const theirSc = isFromMe ? ch.toScore : ch.fromScore;
-          const myTxt = typeof mySc === 'number' ? mySc : 'pas encore';
-          const theirTxt = typeof theirSc === 'number' ? theirSc : 'pas encore';
-          statusLine += ` · Toi: ${myTxt} · Adversaire: ${theirTxt}`;
+        if (multi) {
+          const rows = multiRankingRows(ch);
+          const submitted = rows.filter(r => r.score !== null).length;
+          statusLine = `En cours — ${submitted}/${rows.length} scores envoyés`;
+          standings = multiStandingHtml(ch);
+        } else {
+          statusLine = 'En cours vs @' + other;
+          if (ch.type === 'score_day' || ch.type === 'exercise' || ch.type === 'goal') {
+            const mySc = isFromMe ? ch.fromScore : ch.toScore;
+            const theirSc = isFromMe ? ch.toScore : ch.fromScore;
+            const myTxt = typeof mySc === 'number' ? mySc : 'pas encore';
+            const theirTxt = typeof theirSc === 'number' ? theirSc : 'pas encore';
+            statusLine += ` · Toi: ${myTxt} · Adversaire: ${theirTxt}`;
+          }
         }
       }
       if (ch.status === 'declined') statusLine = 'Refusé';
       if (ch.status === 'cancelled') statusLine = 'Annulé';
       if (ch.status === 'completed') {
-        if (ch.winnerUid === currentUser.uid) statusLine = '🏆 Tu as gagné vs @' + other;
-        else if (ch.winnerUid === 'draw') statusLine = 'Égalité avec @' + other;
-        else statusLine = '❌ Perdu contre @' + other;
-        if (ch.resultText) statusLine += ' — ' + ch.resultText;
+        if (multi) {
+          const rows = multiRankingRows(ch);
+          const top = rows[0];
+          if (ch.winnerUid === currentUser.uid) statusLine = '🏆 Tu as gagné le défi multi';
+          else if (ch.winnerUid === 'draw') statusLine = 'Égalité';
+          else statusLine = 'Classement final — 1er : @' + ((top && top.pseudo) || '?');
+          if (ch.resultText) statusLine += ' — ' + ch.resultText;
+          standings = multiStandingHtml(ch);
+        } else {
+          if (ch.winnerUid === currentUser.uid) statusLine = '🏆 Tu as gagné vs @' + other;
+          else if (ch.winnerUid === 'draw') statusLine = 'Égalité avec @' + other;
+          else statusLine = '❌ Perdu contre @' + other;
+          if (ch.resultText) statusLine += ' — ' + ch.resultText;
+        }
       }
 
       let actions = '';
@@ -2981,7 +3039,9 @@
         actions = `<button type="button" class="danger" data-ch-cancel="${ch.id}">Annuler</button>`;
       }
       if (ch.status === 'active' && (ch.type === 'score_day' || ch.type === 'exercise' || ch.type === 'goal')) {
-        const mySc = isFromMe ? ch.fromScore : ch.toScore;
+        let mySc;
+        if (multi) mySc = ch.scores && typeof ch.scores[currentUser.uid] === 'number' ? ch.scores[currentUser.uid] : null;
+        else mySc = isFromMe ? ch.fromScore : ch.toScore;
         const btnLabel = typeof mySc === 'number'
           ? 'Mettre à jour mon score (' + mySc + ')'
           : 'Envoyer mon score';
@@ -3028,9 +3088,10 @@
       }
 
       card.innerHTML = `
-        <div class="ctype">${CHALLENGE_TYPE_LABELS[ch.type] || ch.type}</div>
-        <div class="ctitle">vs @${escapeHtml(other || '?')}</div>
+        <div class="ctype">${CHALLENGE_TYPE_LABELS[ch.type] || ch.type}${multi ? ' · Multi' : ''}</div>
+        <div class="ctitle">${escapeHtml(playersLabel)}</div>
         <div class="cmeta">${escapeHtml(detail)}<br>${escapeHtml(statusLine)}</div>
+        ${standings}
         <div class="cactions">${actions}</div>
         ${chronoHtml}`;
       list.appendChild(card);
@@ -3064,6 +3125,10 @@
       .onSnapshot(merge, err => console.error(err));
     challengesUnsubTo = db.collection('challenges').where('toUid', '==', currentUser.uid)
       .onSnapshot(merge, err => console.error(err));
+    if (challengesUnsubMulti) { challengesUnsubMulti(); challengesUnsubMulti = null; }
+    challengesUnsubMulti = db.collection('challenges')
+      .where('participants', 'array-contains', currentUser.uid)
+      .onSnapshot(merge, err => console.error(err));
   }
 
   async function respondChallenge(id, status) {
@@ -3087,6 +3152,7 @@
       return;
     }
     const isFrom = ch.fromUid === currentUser.uid;
+    const multi = isMultiChallenge(ch);
     let myVal = 0, label = 'pts';
     if (ch.type === 'score_day' || ch.type === 'goal') {
       myVal = myScoreToday();
@@ -3096,15 +3162,79 @@
       label = ch.exerciseUnit || '';
     }
 
-    const field = isFrom ? 'fromScore' : 'toScore';
     try {
-      await db.collection('challenges').doc(id).update({
-        [field]: myVal,
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
+      if (multi) {
+        await db.collection('challenges').doc(id).update({
+          ['scores.' + currentUser.uid]: myVal,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      } else {
+        const field = isFrom ? 'fromScore' : 'toScore';
+        await db.collection('challenges').doc(id).update({
+          [field]: myVal,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }
+
       // Relecture fraîche pour éviter les courses
       const snap = await db.collection('challenges').doc(id).get();
       const fresh = snap.data() || {};
+      if (fresh.status === 'completed') {
+        socialFlash('Défi déjà terminé.', 'ok');
+        return;
+      }
+
+      if (multi) {
+        const parts = fresh.participants || ch.participants || [];
+        const scores = fresh.scores || {};
+        const allIn = parts.every(uid => typeof scores[uid] === 'number');
+        if (!allIn) {
+          const done = parts.filter(uid => typeof scores[uid] === 'number').length;
+          socialFlash('Score enregistré (' + myVal + ' ' + label + ') — ' + done + '/' + parts.length + ' joueurs', 'ok');
+          return;
+        }
+
+        // Classement
+        const ranked = parts.map(uid => ({
+          uid,
+          score: scores[uid],
+          pseudo: (fresh.pseudos && fresh.pseudos[uid]) || uid
+        })).sort((a, b) => b.score - a.score);
+
+        let winnerUid = ranked[0].uid;
+        if (ranked.length > 1 && ranked[0].score === ranked[1].score) winnerUid = 'draw';
+
+        if (ch.type === 'goal') {
+          const goal = ch.goalPoints || 0;
+          const qualifiers = ranked.filter(r => r.score >= goal);
+          if (!qualifiers.length) winnerUid = 'draw';
+          else {
+            winnerUid = qualifiers[0].uid;
+            if (qualifiers.length > 1 && qualifiers[0].score === qualifiers[1].score) winnerUid = 'draw';
+          }
+        }
+
+        const resultText = ranked.map((r, i) => (i + 1) + '. @' + r.pseudo + ' ' + r.score).join(' · ');
+        await db.collection('challenges').doc(id).update({
+          status: 'completed',
+          winnerUid,
+          resultText,
+          ranking: ranked.map(r => ({ uid: r.uid, score: r.score, pseudo: r.pseudo })),
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        tryClaimChallengeXp({
+          id,
+          status: 'completed',
+          winnerUid,
+          fromUid: ch.fromUid,
+          toUid: ch.toUid
+        });
+        if (winnerUid === currentUser.uid) socialFlash('🏆 Tu as gagné ! ' + resultText, 'ok');
+        else if (winnerUid === 'draw') socialFlash('Égalité — ' + resultText, 'ok');
+        else socialFlash('Classement — ' + resultText, 'ok');
+        return;
+      }
+
       const fromScore = typeof fresh.fromScore === 'number' ? fresh.fromScore : null;
       const toScore = typeof fresh.toScore === 'number' ? fresh.toScore : null;
 
@@ -3128,19 +3258,12 @@
           if (fromScore > toScore) winnerUid = ch.fromUid;
           else if (toScore > fromScore) winnerUid = ch.toUid;
         } else {
-          // personne n'a atteint l'objectif
           winnerUid = 'draw';
         }
         resultText = 'objectif ' + goal + ' — ' + fromScore + ' vs ' + toScore;
       } else {
         if (fromScore > toScore) winnerUid = ch.fromUid;
         else if (toScore > fromScore) winnerUid = ch.toUid;
-      }
-
-      // Évite double-clôture si l'autre a déjà terminé
-      if (fresh.status === 'completed') {
-        socialFlash('Défi déjà terminé.', 'ok');
-        return;
       }
 
       await db.collection('challenges').doc(id).update({
@@ -3318,10 +3441,28 @@
     return d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
   }
 
+  function displayNameForUid(uid, fallbackPseudo) {
+    const nick = state.chatNicknames && state.chatNicknames[uid];
+    if (nick) return nick;
+    return fallbackPseudo || uid;
+  }
+
+  function chatTitleFromMeta(meta) {
+    if (!meta) return 'Chat';
+    if (meta.type === 'group') return meta.name || 'Groupe';
+    const other = (meta.participants || []).find(u => u !== currentUser.uid);
+    const base = meta.pseudo || (meta.pseudos && meta.pseudos[other]) || 'ami';
+    return '@' + displayNameForUid(other, base);
+  }
+
   function showChatList() {
     document.getElementById('chatListView').style.display = 'block';
     document.getElementById('chatThreadView').style.display = 'none';
     document.getElementById('groupCreateView').style.display = 'none';
+    const chv = document.getElementById('chatChallengeView');
+    if (chv) chv.style.display = 'none';
+    const menu = document.getElementById('chatPlusMenu');
+    if (menu) menu.style.display = 'none';
     if (messagesUnsub) { messagesUnsub(); messagesUnsub = null; }
     activeChatId = null;
     activeChatMeta = null;
@@ -3334,16 +3475,17 @@
     activeChatMeta = meta || { type: 'dm' };
     document.getElementById('chatListView').style.display = 'none';
     document.getElementById('groupCreateView').style.display = 'none';
+    const chv = document.getElementById('chatChallengeView');
+    if (chv) chv.style.display = 'none';
     const thread = document.getElementById('chatThreadView');
     thread.style.display = 'flex';
-    const title = meta.type === 'group'
-      ? (meta.name || 'Groupe')
-      : ('@' + (meta.pseudo || 'ami'));
-    document.getElementById('chatThreadTitle').textContent = title;
+    document.getElementById('chatThreadTitle').textContent = chatTitleFromMeta(meta);
     const renameBtn = document.getElementById('chatRenameBtn');
-    renameBtn.style.display = meta.type === 'group' ? 'inline-flex' : 'none';
+    if (renameBtn) renameBtn.style.display = 'inline-flex';
     document.getElementById('chatMessages').innerHTML = '<div class="social-empty">Chargement…</div>';
     document.getElementById('chatInput').value = '';
+    const menu = document.getElementById('chatPlusMenu');
+    if (menu) menu.style.display = 'none';
     listenMessages(chatId);
   }
 
@@ -3351,6 +3493,7 @@
     openChatThread(chatIdFor(currentUser.uid, friend.uid), {
       type: 'dm',
       pseudo: friend.pseudo,
+      otherUid: friend.uid,
       participants: [currentUser.uid, friend.uid],
       pseudos: {
         [currentUser.uid]: state.pseudo || '',
@@ -3623,26 +3766,176 @@
     }
   }
 
-  async function renameActiveGroup() {
-    if (!activeChatMeta || activeChatMeta.type !== 'group' || !activeChatId) return;
-    const next = prompt('Nouveau nom du groupe :', activeChatMeta.name || '');
-    if (next === null) return;
-    const name = next.trim().slice(0, 40);
-    if (name.length < 2) {
-      socialFlash('Nom trop court', 'err');
+  async function renameChat() {
+    if (!activeChatMeta) return;
+    if (activeChatMeta.type === 'group') {
+      if (!activeChatId) return;
+      const next = prompt('Nouveau nom du groupe :', activeChatMeta.name || '');
+      if (next === null) return;
+      const name = next.trim().slice(0, 40);
+      if (name.length < 2) {
+        socialFlash('Nom trop court', 'err');
+        return;
+      }
+      try {
+        await db.collection('conversations').doc(activeChatId).update({
+          name,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        activeChatMeta.name = name;
+        document.getElementById('chatThreadTitle').textContent = name;
+        socialFlash('Groupe renommé', 'ok');
+      } catch (e) {
+        console.error(e);
+        socialFlash('Renommage impossible', 'err');
+      }
       return;
     }
-    try {
-      await db.collection('conversations').doc(activeChatId).update({
-        name,
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    // Surnom local pour un contact
+    const other = activeChatMeta.otherUid || (activeChatMeta.participants || []).find(u => u !== currentUser.uid);
+    if (!other) return;
+    const current = displayNameForUid(other, activeChatMeta.pseudo || other);
+    const next = prompt('Surnom pour ce contact (local) :', current);
+    if (next === null) return;
+    const nick = next.trim().slice(0, 30);
+    if (!state.chatNicknames) state.chatNicknames = {};
+    if (!nick) delete state.chatNicknames[other];
+    else state.chatNicknames[other] = nick;
+    saveState();
+    document.getElementById('chatThreadTitle').textContent = chatTitleFromMeta(activeChatMeta);
+    socialFlash(nick ? 'Surnom enregistré' : 'Surnom effacé', 'ok');
+  }
+
+  function toggleChatPlusMenu() {
+    const menu = document.getElementById('chatPlusMenu');
+    if (!menu) return;
+    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+  }
+
+  function openChatChallengeComposer() {
+    if (!activeChatMeta || !currentUser) return;
+    document.getElementById('chatPlusMenu').style.display = 'none';
+    document.getElementById('chatThreadView').style.display = 'none';
+    document.getElementById('chatChallengeView').style.display = 'block';
+
+    const typeSel = document.getElementById('chatChType');
+    const syncFields = () => {
+      document.getElementById('chatChExField').style.display = typeSel.value === 'exercise' ? 'block' : 'none';
+      document.getElementById('chatChGoalField').style.display = typeSel.value === 'goal' ? 'block' : 'none';
+    };
+    typeSel.onchange = syncFields;
+    syncFields();
+
+    const exSel = document.getElementById('chatChEx');
+    exSel.innerHTML = '';
+    (state.exercises || []).forEach(ex => {
+      const opt = document.createElement('option');
+      opt.value = ex.id;
+      opt.textContent = ex.name;
+      exSel.appendChild(opt);
+    });
+
+    const box = document.getElementById('chatChMembers');
+    const parts = (activeChatMeta.participants || []).filter(u => u !== currentUser.uid);
+    if (activeChatMeta.type === 'dm' && parts[0]) {
+      const pseudo = activeChatMeta.pseudo || (activeChatMeta.pseudos && activeChatMeta.pseudos[parts[0]]) || parts[0];
+      box.innerHTML = `<label class="group-pick-row"><input type="checkbox" checked disabled value="${parts[0]}" data-pseudo="${escapeHtml(pseudo)}"><span>@${escapeHtml(displayNameForUid(parts[0], pseudo))} (toi inclus)</span></label>`;
+    } else {
+      box.innerHTML = '';
+      parts.forEach(uid => {
+        const pseudo = (activeChatMeta.pseudos && activeChatMeta.pseudos[uid]) || uid;
+        const row = document.createElement('label');
+        row.className = 'group-pick-row';
+        row.innerHTML = `<input type="checkbox" checked value="${uid}" data-pseudo="${escapeHtml(pseudo)}"><span>@${escapeHtml(displayNameForUid(uid, pseudo))}</span>`;
+        box.appendChild(row);
       });
-      activeChatMeta.name = name;
-      document.getElementById('chatThreadTitle').textContent = name;
-      socialFlash('Groupe renommé', 'ok');
+    }
+  }
+
+  async function sendChatChallenge() {
+    if (!currentUser || !state.pseudo || !activeChatMeta) return;
+    const type = document.getElementById('chatChType').value;
+    let memberInputs = Array.from(document.querySelectorAll('#chatChMembers input[type=checkbox]'));
+    if (activeChatMeta.type === 'dm') {
+      memberInputs = memberInputs; // already the other person
+    } else {
+      memberInputs = memberInputs.filter(i => i.checked);
+    }
+    const others = memberInputs.map(i => ({
+      uid: i.value,
+      pseudo: i.getAttribute('data-pseudo') || i.value
+    }));
+    if (!others.length) {
+      socialFlash('Choisis au moins un participant', 'err');
+      return;
+    }
+    if (others.length > 3) {
+      socialFlash('Maximum 4 personnes (toi + 3)', 'err');
+      return;
+    }
+
+    const participants = [currentUser.uid, ...others.map(o => o.uid)];
+    const pseudos = { [currentUser.uid]: state.pseudo };
+    others.forEach(o => { pseudos[o.uid] = o.pseudo; });
+    const scores = {};
+    participants.forEach(u => { scores[u] = null; });
+
+    const data = {
+      type,
+      mode: participants.length > 2 ? 'multi' : 'duo',
+      fromUid: currentUser.uid,
+      fromPseudo: state.pseudo,
+      toUid: others[0].uid,
+      toPseudo: others[0].pseudo,
+      participants,
+      pseudos,
+      scores,
+      status: 'active',
+      dayKey: todayKey(),
+      conversationId: activeChatId || null,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+
+    if (type === 'exercise') {
+      const exId = document.getElementById('chatChEx').value;
+      const ex = (state.exercises || []).find(e => e.id === exId);
+      if (!ex) { socialFlash('Exercice invalide', 'err'); return; }
+      data.exerciseId = ex.id;
+      data.exerciseName = ex.name;
+      data.exerciseUnit = ex.unit;
+    }
+    if (type === 'goal') {
+      const g = parseFloat(document.getElementById('chatChGoal').value) || 0;
+      if (g < 10) { socialFlash('Objectif trop bas', 'err'); return; }
+      data.goalPoints = g;
+    }
+
+    try {
+      await db.collection('challenges').add(data);
+      // Message système dans le chat
+      if (activeChatId) {
+        const convRef = db.collection('conversations').doc(activeChatId);
+        await convRef.collection('messages').add({
+          from: currentUser.uid,
+          fromPseudo: state.pseudo || '',
+          text: '🏆 Défi lancé : ' + (type === 'score_day' ? 'Score du jour' : type === 'exercise' ? (data.exerciseName || 'Exercice') : ('Objectif ' + data.goalPoints + ' pts')) + ' (' + participants.length + ' joueurs)',
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          system: true
+        });
+        await convRef.set({
+          lastMessage: '🏆 Nouveau défi',
+          lastFrom: currentUser.uid,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+      }
+      socialFlash('Défi envoyé à ' + participants.length + ' joueurs', 'ok');
+      logEvent('challenge_sent_chat', { type, n: participants.length });
+      document.getElementById('chatChallengeView').style.display = 'none';
+      document.getElementById('chatThreadView').style.display = 'flex';
     } catch (e) {
       console.error(e);
-      socialFlash('Renommage impossible', 'err');
+      socialFlash('Erreur envoi défi (règles ?)', 'err');
     }
   }
 
@@ -3654,7 +3947,21 @@
   document.getElementById('createGroupBtn')?.addEventListener('click', openGroupCreate);
   document.getElementById('groupCreateCancel')?.addEventListener('click', showChatList);
   document.getElementById('groupCreateConfirm')?.addEventListener('click', createGroup);
-  document.getElementById('chatRenameBtn')?.addEventListener('click', renameActiveGroup);
+  document.getElementById('chatRenameBtn')?.addEventListener('click', renameChat);
+  document.getElementById('chatPlusBtn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleChatPlusMenu();
+  });
+  document.getElementById('chatPlusRename')?.addEventListener('click', () => {
+    document.getElementById('chatPlusMenu').style.display = 'none';
+    renameChat();
+  });
+  document.getElementById('chatPlusChallenge')?.addEventListener('click', openChatChallengeComposer);
+  document.getElementById('chatChCancel')?.addEventListener('click', () => {
+    document.getElementById('chatChallengeView').style.display = 'none';
+    document.getElementById('chatThreadView').style.display = 'flex';
+  });
+  document.getElementById('chatChSend')?.addEventListener('click', sendChatChallenge);
 
   // Quand on ouvre l'onglet Messages
   document.querySelectorAll('.social-tab').forEach(tab => {
