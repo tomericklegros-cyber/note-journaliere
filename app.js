@@ -597,17 +597,51 @@
     });
   }
 
+  function exerciseIcon(ex) {
+    const id = (ex.id || '').toLowerCase();
+    const name = (ex.name || '').toLowerCase();
+    if (id.includes('pompe') || name.includes('pompe')) return '💪';
+    if (id.includes('traction') || name.includes('traction')) return '🏋️';
+    if (id.includes('abdo') || name.includes('abdo')) return '🔥';
+    if (id.includes('course') || name.includes('course') || name.includes('run')) return '🏃';
+    if (id.includes('gainage') || name.includes('gainage') || name.includes('planche')) return '⏱️';
+    return '✨';
+  }
+
   function buildForm() {
     const form = document.getElementById('exerciseForm');
     form.innerHTML = '';
     state.exercises.forEach(ex => {
       const field = document.createElement('div');
-      field.className = 'field';
+      field.className = 'exo-card field';
       field.innerHTML = `
-        <label>${escapeHtml(ex.name)} <span class="pts">${ex.points} pts / ${escapeHtml(ex.unit)}</span></label>
+        <div class="exo-card-head">
+          <span class="exo-ico">${exerciseIcon(ex)}</span>
+          <div class="exo-titles">
+            <div class="exo-name">${escapeHtml(ex.name)}</div>
+            <div class="exo-pts">${ex.points} pts / ${escapeHtml(ex.unit)}</div>
+          </div>
+        </div>
         <input type="number" min="0" ${ex.decimal ? 'step="0.1"' : 'step="1"'} inputmode="${ex.decimal ? 'decimal' : 'numeric'}" placeholder="0" data-ex-id="${ex.id}">
+        <button type="button" class="exo-add-btn" data-ex-add="${ex.id}">+ Ajouter</button>
       `;
       form.appendChild(field);
+    });
+
+    form.querySelectorAll('[data-ex-add]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-ex-add');
+        const inp = form.querySelector(`input[data-ex-id="${id}"]`);
+        const v = parseFloat(inp && inp.value) || 0;
+        if (!v) {
+          flash('Entre une valeur pour cet exercice.');
+          if (inp) inp.focus();
+          return;
+        }
+        const entries = [{ id, v }];
+        pendingEntries = entries;
+        openDifficultyModal(entries);
+      });
     });
   }
 
