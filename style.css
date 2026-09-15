@@ -3183,3 +3183,173 @@ body.light-theme .chat-messages {
   /* moins d'espace vide sous les cards */
   .app-section.active { margin-bottom: 8px; }
 }
+
+
+/* ===== Affichage compte (sidebar + profil) ===== */
+.auth-account-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  margin-bottom: 8px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(var(--accent-rgb), 0.08);
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color .15s, background .15s, transform .12s;
+}
+.auth-account-card:hover {
+  border-color: rgba(var(--accent-rgb), 0.5);
+  background: rgba(var(--accent-rgb), 0.14);
+  transform: translateY(-1px);
+}
+.auth-account-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 800;
+  background: rgba(var(--accent-rgb), 0.2);
+  border: 1px solid rgba(var(--accent-rgb), 0.35);
+  flex-shrink: 0;
+}
+.auth-account-meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.auth-account-meta strong {
+  font-size: 13px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.auth-account-meta span {
+  font-size: 11px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.auth-account-level {
+  display: inline-flex !important;
+  align-self: flex-start;
+  margin-top: 3px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px !important;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  background: rgba(var(--accent-rgb), 0.22);
+  color: var(--ink) !important;
+  border: 1px solid rgba(var(--accent-rgb), 0.35);
+}
+
+.profile-hero {
+  margin-bottom: 16px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(var(--accent-rgb), 0.18), transparent 55%),
+    var(--stone-dark);
+}
+.profile-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.profile-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+  --rank-color: #22C55E;
+}
+.profile-avatar {
+  width: 72px !important;
+  height: 72px !important;
+  border-radius: 22px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 32px !important;
+  font-weight: 800;
+  background: rgba(0,0,0,0.25) !important;
+  border: 3px solid var(--rank-color) !important;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--rank-color) 25%, transparent),
+              0 12px 28px rgba(0,0,0,0.25);
+}
+.profile-level-badge {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--purple, #22C55E);
+  color: #0b0a10;
+  font-size: 12px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--stone, #121212);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+.profile-identity {
+  min-width: 0;
+}
+.profile-pseudo {
+  font-size: 22px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.01em;
+  margin-bottom: 2px;
+}
+.profile-email {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-bottom: 8px;
+  word-break: break-all;
+}
+.profile-rank-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  background: #888;
+  color: #0b0a10;
+}
+.profile-stats {
+  grid-template-columns: repeat(3, 1fr) !important;
+}
+@media (max-width: 640px) {
+  .profile-stats {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+.profile-stat {
+  transition: transform .12s, border-color .15s;
+}
+.profile-stat:hover {
+  border-color: rgba(var(--accent-rgb), 0.4);
+  transform: translateY(-1px);
+}
+.profile-level-box {
+  background:
+    linear-gradient(135deg, rgba(var(--accent-rgb), 0.12), transparent 60%),
+    var(--stone-dark) !important;
+}
+.profile-xp-fill {
+  background: linear-gradient(90deg, var(--purple, #22C55E), #86efac) !important;
+  box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.45);
+}

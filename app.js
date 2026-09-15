@@ -36,10 +36,21 @@
       loggedIn.style.display = 'block';
       const display = (state && state.pseudo) ? state.pseudo
         : (user.displayName || user.email?.split('@')[0] || 'Utilisateur');
-      document.getElementById('authDisplayName').textContent = display;
-      document.getElementById('authEmail').textContent = state && state.pseudo
-        ? ('@' + state.pseudo + (user.email ? ' · ' + user.email : ''))
-        : (user.email || user.uid);
+      const nameEl = document.getElementById('authDisplayName');
+      const emailEl = document.getElementById('authEmail');
+      if (nameEl) nameEl.textContent = state && state.pseudo ? '@' + state.pseudo : display;
+      if (emailEl) emailEl.textContent = user.email || 'Compte connecté';
+      const avEl = document.getElementById('authAccountAvatar');
+      if (avEl) {
+        const av = (state && state.selectedAvatar && typeof AVATAR_CATALOG !== 'undefined' && AVATAR_CATALOG[state.selectedAvatar])
+          ? AVATAR_CATALOG[state.selectedAvatar].emoji
+          : (display || '?').replace(/^@/, '').slice(0, 1).toUpperCase();
+        avEl.textContent = av;
+      }
+      const lvlEl = document.getElementById('authAccountLevel');
+      if (lvlEl && typeof levelFromXp === 'function') {
+        lvlEl.textContent = 'Niv. ' + levelFromXp((state && state.xp) || 0);
+      }
       setAuthStatus('Connecté — synchronisation active', 'synced');
     } else {
       loggedOut.style.display = 'block';
@@ -275,7 +286,14 @@
     }
   });
 
-  document.getElementById('logoutBtn').addEventListener('click', async () => {
+  
+  document.getElementById('authAccountCard')?.addEventListener('click', () => {
+    if (typeof showSection === 'function') showSection('section-profile');
+    if (typeof closeNav === 'function') closeNav();
+    if (typeof renderProfile === 'function') renderProfile();
+  });
+
+document.getElementById('logoutBtn').addEventListener('click', async () => {
     const ok = confirm("Voulez-vous vraiment vous déconnecter ?");
     if (!ok) return;
     try {
@@ -1414,6 +1432,8 @@
       ? AVATAR_CATALOG[state.selectedAvatar].emoji
       : (state.pseudo || pseudo || '?').slice(0, 1).toUpperCase();
     avatarEl.textContent = av;
+    const levelBadge = document.getElementById('profileLevelBadge');
+    if (levelBadge) levelBadge.textContent = String(levelFromXp(state.xp || 0));
     applyCosmeticTheme();
     renderCosmeticsPickers();
 
@@ -1455,6 +1475,14 @@
     if (rankLine) {
       rankLine.innerHTML = `Rang du jour : <strong style="color:${rank.color}">${escapeHtml(rank.name)}</strong> · ${scoreNow} pts`;
     }
+    const rankPill = document.getElementById('profileRankPill');
+    if (rankPill) {
+      rankPill.textContent = rank.name;
+      rankPill.style.background = rank.color;
+      rankPill.style.color = rank.ink || '#0b0a10';
+    }
+    const avWrap = document.querySelector('.profile-avatar-wrap');
+    if (avWrap) avWrap.style.setProperty('--rank-color', rank.color);
 
     const bc = countBadgesProgress();
     const badgeStat = document.getElementById('statBadges');

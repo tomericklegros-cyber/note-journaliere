@@ -382,10 +382,14 @@
       <div class="auth-status" id="authStatusOut">Données locales uniquement</div>
     </div>
     <div id="authLoggedIn" style="display:none;">
-      <div class="auth-user">
-        <strong id="authDisplayName">—</strong>
-        <span id="authEmail">—</span>
-      </div>
+      <button type="button" class="auth-account-card" id="authAccountCard" title="Voir mon profil">
+        <div class="auth-account-avatar" id="authAccountAvatar">?</div>
+        <div class="auth-account-meta">
+          <strong id="authDisplayName">—</strong>
+          <span id="authEmail">—</span>
+          <span class="auth-account-level" id="authAccountLevel">Niv. 1</span>
+        </div>
+      </button>
       <button type="button" class="auth-btn danger" id="logoutBtn">Se déconnecter</button>
       <div class="auth-status" id="authStatusIn">—</div>
     </div>
@@ -638,11 +642,17 @@
 
       <div class="card profile-card app-section" id="section-profile">
         <h2>Profil</h2>
-        <div class="profile-header">
-          <div class="profile-avatar" id="profileAvatar">?</div>
-          <div class="profile-identity">
-            <div class="profile-pseudo" id="profilePseudo">Non connecté</div>
-            <div class="profile-email" id="profileEmail">—</div>
+        <div class="profile-hero">
+          <div class="profile-header">
+            <div class="profile-avatar-wrap">
+              <div class="profile-avatar" id="profileAvatar">?</div>
+              <div class="profile-level-badge" id="profileLevelBadge">1</div>
+            </div>
+            <div class="profile-identity">
+              <div class="profile-pseudo" id="profilePseudo">Non connecté</div>
+              <div class="profile-email" id="profileEmail">—</div>
+              <div class="profile-rank-pill" id="profileRankPill">Débutant</div>
+            </div>
           </div>
         </div>
         <div class="profile-level-box">
