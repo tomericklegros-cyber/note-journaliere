@@ -1226,6 +1226,26 @@ var ADMIN_CHAT_ID = 'admin_broadcast';
     return d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
   }
 
+  function formatChatListTime(date) {
+    const d = date instanceof Date ? date : new Date(date);
+    if (isNaN(d.getTime())) return '';
+    const today = new Date();
+    const same = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+    if (same(d, today)) return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    const yday = new Date();
+    yday.setDate(today.getDate() - 1);
+    if (same(d, yday)) return 'Hier';
+    return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+  }
+
+  function initialsFromName(name) {
+    const s = String(name || '?').replace(/^@/, '').trim();
+    if (!s) return '?';
+    const parts = s.split(/[\s_]+/).filter(Boolean);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return s.slice(0, 2).toUpperCase();
+  }
+
   function displayNameForUid(uid, fallbackPseudo) {
     const nick = state.chatNicknames && state.chatNicknames[uid];
     if (nick) return nick;
@@ -1364,19 +1384,36 @@ var ADMIN_CHAT_ID = 'admin_broadcast';
       rows.forEach(c => {
         const isGroup = c.type === 'group';
         let title = c.name || 'Groupe';
+        let otherUid = null;
+        let avatarColor = '#22C55E';
         if (!isGroup) {
-          const other = (c.participants || []).find(u => u !== currentUser.uid);
-          title = '@' + ((c.pseudos && c.pseudos[other]) || other || 'ami');
+          otherUid = (c.participants || []).find(u => u !== currentUser.uid);
+          const base = (c.pseudos && c.pseudos[otherUid]) || otherUid || 'ami';
+          title = '@' + displayNameForUid(otherUid, base);
+          avatarColor = colorForUid(otherUid);
+        } else {
+          avatarColor = colorForUid(c.id || title);
         }
         let when = '';
-        if (c.updatedAt && c.updatedAt.toDate) when = formatChatDay(c.updatedAt.toDate());
+        if (c.updatedAt && c.updatedAt.toDate) when = formatChatListTime(c.updatedAt.toDate());
+        const preview = (c.lastMessage || '').trim() || (isGroup ? 'Groupe' : 'Discussion');
+        const unread = !!(c.updatedAt && c.updatedAt.toMillis && getChatReadMap()[c.id] && c.updatedAt.toMillis() > (getChatReadMap()[c.id] || 0));
+        // simpler unread: if lastFrom is not me and updated after last read
+        let isUnread = false;
+        try {
+          const readMap = getChatReadMap();
+          const lastRead = readMap[c.id] || 0;
+          const updatedMs = c.updatedAt && c.updatedAt.toMillis ? c.updatedAt.toMillis() : 0;
+          isUnread = updatedMs > lastRead && c.lastFrom && c.lastFrom !== currentUser.uid;
+        } catch (e) {}
         const card = document.createElement('div');
-        card.className = 'friend-card chatable conv-card';
+        card.className = 'friend-card chatable conv-card' + (isUnread ? ' unread' : '');
+        const avContent = isGroup ? '👥' : escapeHtml(initialsFromName(title));
         card.innerHTML = `
-          <div class="conv-avatar ${isGroup ? 'group' : ''}">${isGroup ? '👥' : title.slice(1,2).toUpperCase()}</div>
+          <div class="conv-avatar ${isGroup ? 'group' : ''}" style="background:${avatarColor}33;color:${avatarColor};border-color:${avatarColor}66">${avContent}</div>
           <div class="conv-body">
-            <div class="fname">${escapeHtml(title)}</div>
-            <div class="fmeta">${escapeHtml((c.lastMessage || 'Nouvelle conversation').slice(0, 48))}</div>
+            <div class="fname">${escapeHtml(title)}${isUnread ? '<span class="conv-unread-dot"></span>' : ''}</div>
+            <div class="fmeta">${escapeHtml(preview.slice(0, 56))}</div>
           </div>
           <div class="conv-date">${escapeHtml(when)}</div>`;
         card.addEventListener('click', () => {
@@ -1472,22 +1509,31 @@ var ADMIN_CHAT_ID = 'admin_broadcast';
           }
           const wrap = document.createElement('div');
           wrap.className = 'chat-row ' + (mine ? 'me' : 'them');
-          const bubble = document.createElement('div');
-          bubble.className = 'chat-bubble ' + (mine ? 'me' : 'them');
-          if (!mine && isGroup) {
-            const col = colorForUid(m.from);
-            bubble.style.borderLeft = '3px solid ' + col;
-            bubble.style.background = col + '22';
-          }
-          let time = '';
-          if (d) time = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+          const col = colorForUid(m.from);
           const pseudo = m.fromPseudo ||
             (activeChatMeta && activeChatMeta.pseudos && activeChatMeta.pseudos[m.from]) ||
             '';
-          const nameHtml = (!mine && isGroup && pseudo)
-            ? `<div class="cname" style="color:${colorForUid(m.from)}">${escapeHtml(pseudo)}</div>`
-            : (!mine && pseudo ? `<div class="cname">${escapeHtml(pseudo)}</div>` : '');
-          bubble.innerHTML = `${nameHtml}${escapeHtml(m.text || '')}<span class="ctime">${time}</span>`;
+          const shownName = displayNameForUid(m.from, pseudo);
+          if (!mine && isGroup) {
+            const av = document.createElement('div');
+            av.className = 'chat-msg-avatar';
+            av.style.background = col + '33';
+            av.style.color = col;
+            av.textContent = initialsFromName(shownName || pseudo || '?');
+            wrap.appendChild(av);
+          }
+          const bubble = document.createElement('div');
+          bubble.className = 'chat-bubble ' + (mine ? 'me' : 'them');
+          if (!mine && isGroup) {
+            bubble.style.borderLeft = '3px solid ' + col;
+            bubble.style.background = col + '18';
+          }
+          let time = '';
+          if (d) time = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+          const nameHtml = (!mine && isGroup && (shownName || pseudo))
+            ? `<div class="cname" style="color:${col}">${escapeHtml(shownName || pseudo)}</div>`
+            : (!mine && (shownName || pseudo) ? `<div class="cname">${escapeHtml(shownName || pseudo)}</div>` : '');
+          bubble.innerHTML = `${nameHtml}<div class="cbody">${escapeHtml(m.text || '')}</div><span class="ctime">${time}</span>`;
           wrap.appendChild(bubble);
           box.appendChild(wrap);
         });
