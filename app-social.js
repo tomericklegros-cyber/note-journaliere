@@ -252,17 +252,42 @@ var ADMIN_CHAT_ID = 'admin_broadcast';
       }
       const p = snap.data();
       document.getElementById('fpPseudo').textContent = '@' + (p.pseudo || fallbackPseudo || '?');
-      document.getElementById('fpAvatar').textContent = (p.pseudo || '?').slice(0, 1).toUpperCase();
-      document.getElementById('fpRank').textContent = p.rankName || '—';
-      if (p.rankColor) {
-        document.getElementById('fpRank').style.color = p.rankColor;
+      const av = (p.selectedAvatar && typeof AVATAR_CATALOG !== 'undefined' && AVATAR_CATALOG[p.selectedAvatar])
+        ? AVATAR_CATALOG[p.selectedAvatar].emoji
+        : (p.pseudo || '?').slice(0, 1).toUpperCase();
+      document.getElementById('fpAvatar').textContent = av;
+
+      const today = typeof todayKey === 'function' ? todayKey() : null;
+      const isToday = !!(today && p.dayKey === today);
+      const scoreToday = (typeof p.todayScore === 'number') ? Math.round(p.todayScore) : 0;
+      const activeToday = isToday && (p.activeToday === true || scoreToday > 0);
+
+      const rankEl = document.getElementById('fpRank');
+      if (activeToday) {
+        rankEl.textContent = p.rankName || '—';
+        rankEl.style.color = p.rankColor || '';
+      } else {
+        rankEl.textContent = 'Pas actif aujourd’hui';
+        rankEl.style.color = '#888';
       }
-      document.getElementById('fpScore').textContent =
-        (typeof p.todayScore === 'number' ? p.todayScore + ' pts aujourd’hui' : 'Score inconnu');
+
+      const scoreLabel = document.querySelector('#fpScore')?.parentElement?.querySelector('.ps-label');
+      if (activeToday) {
+        document.getElementById('fpScore').textContent = scoreToday + ' pts';
+        if (scoreLabel) scoreLabel.textContent = 'Aujourd’hui';
+      } else {
+        const last = typeof p.lastScore === 'number' ? Math.round(p.lastScore) : null;
+        document.getElementById('fpScore').textContent = last != null ? (last + ' pts') : '—';
+        if (scoreLabel) scoreLabel.textContent = p.dayKey ? ('Dernier jour') : 'Score';
+      }
+
       document.getElementById('fpLevel').textContent = 'Niveau ' + (p.level || 1);
       document.getElementById('fpXp').textContent = (p.xp || 0) + ' XP';
-      document.getElementById('fpBadges').textContent =
-        (p.badgesUnlocked || 0) + ' / ' + (p.badgesTotal || 0) + ' badges';
+      const bu = p.badgesUnlocked || 0;
+      const bt = p.badgesTotal || 0;
+      document.getElementById('fpBadges').textContent = bu + ' / ' + bt;
+      const badgeLabel = document.querySelector('#fpBadges')?.parentElement?.querySelector('.ps-label');
+      if (badgeLabel) badgeLabel.textContent = 'Badges';
     } catch (e) {
       console.error(e);
       document.getElementById('fpRank').textContent = 'Impossible de charger le profil';
@@ -1533,15 +1558,183 @@ var ADMIN_CHAT_ID = 'admin_broadcast';
           const nameHtml = (!mine && isGroup && (shownName || pseudo))
             ? `<div class="cname" style="color:${col}">${escapeHtml(shownName || pseudo)}</div>`
             : (!mine && (shownName || pseudo) ? `<div class="cname">${escapeHtml(shownName || pseudo)}</div>` : '');
-          bubble.innerHTML = `${nameHtml}<div class="cbody">${escapeHtml(m.text || '')}</div><span class="ctime">${time}</span>`;
+          const kind = m.kind || 'text';
+          if (kind === 'score') {
+            bubble.classList.add('chat-card', 'chat-card-score');
+            bubble.innerHTML = `${nameHtml}
+              <div class="chat-card-title">📊 Score du jour</div>
+              <div class="chat-card-big">${escapeHtml(String(m.score ?? '—'))} <span>pts</span></div>
+              <div class="chat-card-sub">${escapeHtml(m.rankName || '')}${m.dayKey ? ' · ' + escapeHtml(m.dayKey) : ''}</div>
+              <span class="ctime">${time}</span>`;
+          } else if (kind === 'calendar') {
+            bubble.classList.add('chat-card', 'chat-card-cal');
+            bubble.innerHTML = `${nameHtml}
+              <div class="chat-card-title">📅 Calendrier</div>
+              <div class="chat-card-big" style="font-size:16px;">${escapeHtml(m.calTitle || 'Séance')}</div>
+              <div class="chat-card-sub">${escapeHtml(m.dayKey || '')}${m.calDetails ? ' · ' + escapeHtml(m.calDetails) : ''}</div>
+              <button type="button" class="chat-card-btn" data-open-cal="${escapeHtml(m.dayKey || '')}">Voir dans le calendrier</button>
+              <span class="ctime">${time}</span>`;
+          } else if (kind === 'vote') {
+            bubble.classList.add('chat-card', 'chat-card-vote');
+            const votes = m.votes || {};
+            const opts = m.options || [];
+            const counts = {};
+            opts.forEach(o => { counts[o.id] = 0; });
+            Object.values(votes).forEach(v => { if (counts[v] != null) counts[v]++; });
+            const totalVotes = Object.keys(votes).length;
+            const myVote = votes[currentUser.uid];
+            let optsHtml = opts.map(o => {
+              const n = counts[o.id] || 0;
+              const pct = totalVotes ? Math.round((n / totalVotes) * 100) : 0;
+              const selected = myVote === o.id ? ' selected' : '';
+              return `<button type="button" class="vote-opt${selected}" data-vote-msg="${doc.id}" data-vote-opt="${escapeHtml(o.id)}">
+                <span class="vote-label">${escapeHtml(o.label)}</span>
+                <span class="vote-count">${n} · ${pct}%</span>
+                <span class="vote-bar" style="width:${pct}%"></span>
+              </button>`;
+            }).join('');
+            bubble.innerHTML = `${nameHtml}
+              <div class="chat-card-title">🗳️ ${escapeHtml(m.voteTitle || 'Vote défi')}</div>
+              <div class="chat-card-sub">${totalVotes} vote${totalVotes > 1 ? 's' : ''}</div>
+              <div class="vote-opts">${optsHtml}</div>
+              <span class="ctime">${time}</span>`;
+          } else {
+            bubble.innerHTML = `${nameHtml}<div class="cbody">${escapeHtml(m.text || '')}</div><span class="ctime">${time}</span>`;
+          }
           wrap.appendChild(bubble);
           box.appendChild(wrap);
+        });
+        // bind calendar + vote buttons
+        box.querySelectorAll('[data-open-cal]').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const key = btn.getAttribute('data-open-cal');
+            if (typeof showSection === 'function') showSection('section-calendar');
+            if (typeof selectCalDay === 'function' && key) selectCalDay(key);
+            if (typeof closeSocialPanel === 'function') closeSocialPanel();
+          });
+        });
+        box.querySelectorAll('[data-vote-msg]').forEach(btn => {
+          btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const msgId = btn.getAttribute('data-vote-msg');
+            const optId = btn.getAttribute('data-vote-opt');
+            if (!msgId || !optId || !activeChatId || !currentUser) return;
+            try {
+              await db.collection('conversations').doc(activeChatId)
+                .collection('messages').doc(msgId)
+                .set({ votes: { [currentUser.uid]: optId } }, { merge: true });
+            } catch (err) {
+              console.error(err);
+              socialFlash('Vote impossible', 'err');
+            }
+          });
         });
         box.scrollTop = box.scrollHeight;
       }, err => {
         console.error(err);
         box.innerHTML = '<div class="social-empty">Erreur messages (règles Firestore ?)</div>';
       });
+  }
+
+
+  async function postSpecialChatMessage(kind, data, previewText) {
+    if (activeChatId === ADMIN_CHAT_ID && !isAdminUser()) {
+      socialFlash('Seul l’admin peut écrire dans Annonces Admin', 'err');
+      return;
+    }
+    if (!currentUser || !activeChatId || !activeChatMeta) return;
+    try {
+      const convRef = db.collection('conversations').doc(activeChatId);
+      const msgRef = convRef.collection('messages').doc();
+      const batch = db.batch();
+      const participants = (activeChatMeta.participants || []).slice().sort();
+      const pseudos = Object.assign({}, activeChatMeta.pseudos || {}, {
+        [currentUser.uid]: state.pseudo || ''
+      });
+      const payload = {
+        type: activeChatMeta.type || 'dm',
+        participants,
+        pseudos,
+        lastMessage: (previewText || '').slice(0, 120),
+        lastFrom: currentUser.uid,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      if (activeChatMeta.type === 'group') payload.name = activeChatMeta.name || 'Groupe';
+      batch.set(convRef, payload, { merge: true });
+      batch.set(msgRef, Object.assign({
+        from: currentUser.uid,
+        fromPseudo: state.pseudo || '',
+        kind,
+        text: previewText || '',
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, data || {}));
+      await batch.commit();
+      logEvent('message_special', { kind });
+    } catch (e) {
+      console.error(e);
+      socialFlash('Envoi impossible', 'err');
+    }
+  }
+
+  async function sendScoreShare() {
+    document.getElementById('chatPlusMenu').style.display = 'none';
+    if (!currentUser || !activeChatId) return;
+    const score = typeof computeScore === 'function' ? Math.round(computeScore(state)) : 0;
+    const rank = typeof getRank === 'function' ? getRank(score).current : { name: '—' };
+    const day = typeof todayKey === 'function' ? todayKey() : '';
+    await postSpecialChatMessage('score', {
+      score,
+      rankName: rank.name || '',
+      dayKey: day
+    }, 'Score : ' + score + ' pts (' + (rank.name || '') + ')');
+    socialFlash('Score envoyé', 'ok');
+  }
+
+  async function sendCalendarShare() {
+    document.getElementById('chatPlusMenu').style.display = 'none';
+    if (!currentUser || !activeChatId) return;
+    const day = (typeof calSelectedKey !== 'undefined' && calSelectedKey)
+      ? calSelectedKey
+      : (typeof todayKey === 'function' ? todayKey() : '');
+    let title = 'Séance du ' + day;
+    let details = '';
+    if (state.plannedSessions && state.plannedSessions[day]) {
+      const p = state.plannedSessions[day];
+      title = p.title || title;
+      details = p.details || '';
+    } else if (state.dayNotes && state.dayNotes[day]) {
+      details = String(state.dayNotes[day]).slice(0, 120);
+      title = 'Note du ' + day;
+    } else if (day === (typeof todayKey === 'function' ? todayKey() : '') && typeof computeScore === 'function') {
+      const sc = Math.round(computeScore(state));
+      details = sc > 0 ? ('Score en cours : ' + sc + ' pts') : 'Rien de programmé — jour libre';
+    } else {
+      details = 'Rien de programmé sur ce jour';
+    }
+    await postSpecialChatMessage('calendar', {
+      dayKey: day,
+      calTitle: title,
+      calDetails: details
+    }, '📅 ' + title);
+    socialFlash('Jour partagé', 'ok');
+  }
+
+  async function sendChallengeVote() {
+    document.getElementById('chatPlusMenu').style.display = 'none';
+    if (!currentUser || !activeChatId) return;
+    const options = [
+      { id: 'score_day', label: 'Score du jour' },
+      { id: 'exercise', label: 'Exercice (pompes…)' },
+      { id: 'chrono', label: 'Chrono duel' },
+      { id: 'goal', label: 'Objectif points' }
+    ];
+    await postSpecialChatMessage('vote', {
+      voteTitle: 'Quel défi on fait ?',
+      options,
+      votes: {}
+    }, '🗳️ Vote défi');
+    socialFlash('Vote créé', 'ok');
   }
 
   async function sendChatMessage() {
@@ -1847,6 +2040,9 @@ var ADMIN_CHAT_ID = 'admin_broadcast';
     renameChat();
   });
   document.getElementById('chatPlusChallenge')?.addEventListener('click', openChatChallengeComposer);
+  document.getElementById('chatPlusScore')?.addEventListener('click', sendScoreShare);
+  document.getElementById('chatPlusCalendar')?.addEventListener('click', sendCalendarShare);
+  document.getElementById('chatPlusVote')?.addEventListener('click', sendChallengeVote);
   document.getElementById('chatChCancel')?.addEventListener('click', () => {
     document.getElementById('chatChallengeView').style.display = 'none';
     document.getElementById('chatThreadView').style.display = 'flex';

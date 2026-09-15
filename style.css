@@ -3353,3 +3353,104 @@ body.light-theme .chat-messages {
   background: linear-gradient(90deg, var(--purple, #22C55E), #86efac) !important;
   box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.45);
 }
+
+
+/* ===== Cartes chat : score / calendrier / vote ===== */
+.chat-bubble.chat-card {
+  min-width: 200px;
+  max-width: min(90%, 300px) !important;
+  padding: 12px 12px 8px !important;
+}
+.chat-card-title {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  margin-bottom: 6px;
+  opacity: 0.95;
+}
+.chat-card-big {
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1.1;
+  margin-bottom: 4px;
+}
+.chat-card-big span {
+  font-size: 14px;
+  font-weight: 700;
+  opacity: 0.75;
+}
+.chat-card-sub {
+  font-size: 12px;
+  opacity: 0.8;
+  margin-bottom: 8px;
+}
+.chat-card-btn {
+  display: inline-flex;
+  margin: 4px 0 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(var(--accent-rgb), 0.2);
+  color: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.chat-card-btn:hover { filter: brightness(1.1); }
+.chat-bubble.me.chat-card .chat-card-btn {
+  border-color: rgba(0,0,0,0.15);
+  background: rgba(0,0,0,0.12);
+  color: #0b0a10;
+}
+.vote-opts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 6px 0 4px;
+}
+.vote-opt {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(0,0,0,0.18);
+  color: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  overflow: hidden;
+  text-align: left;
+}
+.vote-opt .vote-bar {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  background: rgba(var(--accent-rgb), 0.25);
+  z-index: 0;
+  transition: width .25s ease;
+}
+.vote-opt .vote-label,
+.vote-opt .vote-count { position: relative; z-index: 1; }
+.vote-opt .vote-count { font-size: 11px; opacity: 0.8; white-space: nowrap; }
+.vote-opt.selected {
+  border-color: rgba(var(--accent-rgb), 0.7);
+  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.25);
+}
+.chat-bubble.me .vote-opt {
+  border-color: rgba(0,0,0,0.12);
+  background: rgba(0,0,0,0.08);
+  color: #0b0a10;
+}
+.chat-bubble.me .vote-opt .vote-bar {
+  background: rgba(0,0,0,0.12);
+}
+.chat-plus-menu {
+  min-width: 200px;
+}
+.chat-plus-menu button {
+  width: 100%;
+  text-align: left;
+}

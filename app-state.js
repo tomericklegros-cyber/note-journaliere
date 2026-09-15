@@ -15,19 +15,29 @@ var currentUser = null;
   async function publishPublicProfile(force) {
     if (!currentUser || !db || !state) return;
     try {
-      const score = typeof computeScore === 'function' ? computeScore(state) : 0;
-      const rank = typeof getRank === 'function' ? getRank(score) : { current: { name: '', color: '' } };
-      const current = rank.current || { name: '', color: '' };
+      const rawScore = typeof computeScore === 'function' ? Math.round(computeScore(state)) : 0;
+      const today = typeof todayKey === 'function' ? todayKey() : null;
+      const isToday = !!(today && state.dayKey === today);
+      // Score du jour uniquement si la séance est bien celle d'aujourd'hui
+      const scoreToday = isToday ? rawScore : 0;
+      // Rang affiché : basé sur le score du jour si actif, sinon rang neutre / dernier connu
+      const rankScore = isToday ? rawScore : 0;
+      const rank = typeof getRank === 'function' ? getRank(rankScore) : { current: { name: 'Inactif', color: '#888' } };
+      const current = rank.current || { name: 'Inactif', color: '#888' };
       const level = typeof levelFromXp === 'function' ? levelFromXp(state.xp || 0) : 1;
       const badgeCount = typeof countBadgesProgress === 'function' ? countBadgesProgress() : { unlocked: 0, total: 0 };
+      const lastScore = isToday ? rawScore : (typeof state._lastPublishedScore === 'number' ? state._lastPublishedScore : rawScore);
+      if (isToday) state._lastPublishedScore = rawScore;
       const fp = [
         state.pseudo || '',
         state.xp || 0,
         level,
-        Math.round(score),
+        scoreToday,
         current.name || '',
         state.selectedAvatar || '',
         badgeCount.unlocked,
+        badgeCount.total,
+        state.dayKey || '',
         (state.challengeStats && state.challengeStats.wins) || 0
       ].join('|');
       if (!force && fp === lastPublicFingerprint) return;
@@ -38,15 +48,17 @@ var currentUser = null;
         userName: state.userName || '',
         xp: state.xp || 0,
         level,
-        todayScore: score,
-        rankName: current.name,
-        rankColor: current.color,
+        todayScore: scoreToday,
+        lastScore: isToday ? scoreToday : lastScore,
+        activeToday: isToday && scoreToday > 0,
+        rankName: isToday ? current.name : (scoreToday > 0 ? current.name : 'Pas actif aujourd’hui'),
+        rankColor: isToday ? current.color : '#888888',
         selectedAvatar: state.selectedAvatar || 'default',
-        badgesUnlocked: badgeCount.unlocked,
-        badgesTotal: badgeCount.total,
+        badgesUnlocked: badgeCount.unlocked || 0,
+        badgesTotal: badgeCount.total || 0,
         challengeWins: (state.challengeStats && state.challengeStats.wins) || 0,
         challengePlayed: (state.challengeStats && state.challengeStats.played) || 0,
-        dayKey: state.dayKey,
+        dayKey: state.dayKey || '',
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       }, { merge: true });
     } catch (e) {
